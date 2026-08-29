@@ -398,38 +398,123 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .edwrap>h3 .n{font-size:10.5px;color:var(--dim);font-weight:600;margin-left:auto}
 .edhint{font-size:11.5px;color:var(--dim);margin-bottom:13px;line-height:1.6}
 .chkedit{border:1px solid var(--line2);border-radius:var(--r);padding:14px;margin-bottom:12px;background:rgba(10,9,8,.35)}
-@media(max-width:640px){
-  .wrap{padding:0 12px calc(56px + env(safe-area-inset-bottom))}
-  nav{position:static;gap:3px;padding:6px;border-radius:13px}
-  nav button{font-size:12.5px;padding:9px 12px;gap:6px}
-  .card{padding:16px}
-  .kpi .v{font-size:21px}
-  .ed .xt{width:100%}
-  /* anything that declared a desktop minimum has to give way */
-  .row>div[style*="min-width"],.row>input[style*="min-width"]{min-width:100%!important}
-  .dleg{min-width:0}
-  .dbreak .r>span:first-child{min-width:120px}
-  .top{padding:14px 0 12px}
-  .brand .name{font-size:16px}
-  .mark{height:32px}
+/* ============================================================
+   PHONE
+   Nine tabs in a wrapping row is a desktop pattern. On a phone the
+   app gets a bottom bar with the four screens you actually live in,
+   and a sheet for the rest — the way a native app would do it.
+   ============================================================ */
+.tabbar{display:none}
+.sheet{display:none}
+@media(max-width:760px){
+  .wrap{padding:0 14px calc(96px + env(safe-area-inset-bottom))}
+  nav{display:none}                      /* the desktop tab strip steps aside */
+
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:70;
+    background:rgba(14,12,11,.86);backdrop-filter:blur(20px) saturate(1.4);
+    border-top:1px solid var(--line2);padding:7px 4px calc(7px + env(safe-area-inset-bottom))}
+  .tabbar button{position:relative;background:none;border:none;color:var(--dim);cursor:pointer;
+    font-family:inherit;font-size:10px;font-weight:600;letter-spacing:-.01em;
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px 5px;border-radius:12px;
+    -webkit-tap-highlight-color:transparent;transition:color .2s var(--ease)}
+  .tabbar button svg{width:21px;height:21px;stroke-width:1.7}
+  .tabbar button.on{color:var(--gold)}
+  .tabbar button.on:before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:22px;height:2.5px;border-radius:99px;background:var(--grad-gold);
+    box-shadow:0 0 10px var(--gold-dim);animation:tabin .3s var(--ease-out)}
+  @keyframes tabin{from{width:0;opacity:0}to{width:22px;opacity:1}}
+  .tabbar .cnt{position:absolute;top:3px;right:calc(50% - 20px);min-width:16px;height:16px;padding:0 4px;
+    border-radius:99px;background:var(--loss);color:#fff;font-size:9.5px;font-weight:800;
+    display:grid;place-items:center;border:1.5px solid #0E0C0A}
+
+  .sheet{display:block;position:fixed;inset:0;z-index:80;pointer-events:none}
+  .sheet .scrim{position:absolute;inset:0;background:rgba(6,5,5,.6);opacity:0;transition:opacity .3s var(--ease)}
+  .sheet .panel{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,#1A1614,#100D0C);
+    border-top:1px solid var(--line);border-radius:22px 22px 0 0;padding:10px 14px calc(20px + env(safe-area-inset-bottom));
+    transform:translateY(102%);transition:transform .34s var(--ease-out);box-shadow:0 -20px 60px -20px #000}
+  .sheet.on{pointer-events:auto}
+  .sheet.on .scrim{opacity:1}
+  .sheet.on .panel{transform:none}
+  .sheet .grab{width:38px;height:4px;border-radius:99px;background:var(--line2);margin:4px auto 14px}
+  .sheet a{display:flex;align-items:center;gap:14px;padding:14px 12px;border-radius:13px;
+    color:var(--txt2);text-decoration:none;font-size:14.5px;font-weight:600;
+    -webkit-tap-highlight-color:transparent}
+  .sheet a svg{width:19px;height:19px;opacity:.8;flex:0 0 auto}
+  .sheet a.on{background:rgba(212,175,55,.1);color:var(--gold-lt)}
+  .sheet a:active{background:rgba(255,255,255,.05)}
+
+  /* header shrinks to a single compact line */
+  .top{padding:14px 0 10px;gap:10px}
+  .brand .name{font-size:15.5px}
+  .mark{height:30px}
   .brand .sep,.brand .prod{display:none}
-  .secnav{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .payhero .v{font-size:34px}
-  .dayhead .kv{gap:14px;margin-left:0;width:100%}
-  .discring .num{font-size:36px}
+  .topact .btn{padding:9px 14px;font-size:12px}
+  .topact .btn.ico{padding:9px}
+
+  .card{padding:16px;border-radius:16px}
   h2{font-size:15px}
-  /* the floating buttons must not sit on top of the content */
-  .gatebtn{right:14px;bottom:calc(76px + env(safe-area-inset-bottom));padding:11px 16px;font-size:12.5px}
-  .totop{right:14px;bottom:calc(20px + env(safe-area-inset-bottom))}
-  .ovlcard{padding:20px 16px}
-  /* wide tables scroll rather than squash */
-  .scroll{margin:0 -16px;padding:0 16px}
+  .card h2 .tail{font-size:10.5px}
+  .hint{font-size:12px}
+  .kpis{grid-template-columns:1fr 1fr;gap:9px}
+  .kpi{padding:13px}
+  .kpi .v{font-size:20px}
+  .kpi .l{font-size:9.5px}
+  .pace{grid-template-columns:1fr 1fr;gap:9px}
+  .mrow{grid-template-columns:1fr 1fr}
+  .facts{grid-template-columns:repeat(3,1fr)}
+
+  /* every desktop minimum has to give way */
+  .row>div[style*="min-width"],.row>input[style*="min-width"],.row>select[style*="min-width"]{min-width:100%!important}
+  .dleg{min-width:0}
+  .dbreak .r>span:first-child{min-width:110px}
+  .grid.g2,.grid.g3{grid-template-columns:1fr}
+  .evid{grid-template-columns:1fr}
+
+  /* section links scroll sideways and snap */
+  .secnav{overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;
+    padding-bottom:4px;margin:0 -14px 14px;padding-left:14px;padding-right:14px}
+  .secnav::-webkit-scrollbar{display:none}
+  .secnav a{scroll-snap-align:start;white-space:nowrap;flex:0 0 auto}
+
+  /* wide tables bleed to the screen edge instead of squashing */
+  .scroll{margin:0 -16px;padding:0 16px;-webkit-overflow-scrolling:touch}
+  table{font-size:12px}
+  th,td{padding:9px 10px}
+
+  /* touch targets */
+  .chip{padding:10px 16px;font-size:13px}
+  .btn{padding:13px 22px}
+  .btn.sm{padding:9px 15px;font-size:12.5px}
+  .iconbtn{width:38px;height:38px}
+  input,select,textarea{padding:13px 14px;font-size:16px}   /* 16px stops iOS zooming on focus */
+
+  .payhero .v{font-size:32px}
+  .dayhead{gap:10px}
+  .dayhead .dt{font-size:16px}
+  .dayhead .kv{gap:16px;margin-left:0;width:100%}
+  .dayhead .kv .v{font-size:15px}
+  .discring{gap:14px}
+  .discring .num{font-size:34px}
+  .tev{grid-template-columns:48px 1fr auto;gap:10px;padding:10px}
+  .tev .rr{font-size:14px}
+  .wlsplit,.wlgrid{grid-template-columns:1fr}
+
+  /* the floating buttons sit above the bar, never on it */
+  .gatebtn{right:14px;bottom:calc(84px + env(safe-area-inset-bottom));padding:12px 18px;font-size:13px}
+  .totop{display:none}
+  .ovl{padding:20px 12px calc(20px + env(safe-area-inset-bottom))}
+  .ovlcard{padding:20px 16px;border-radius:18px}
+  .keyleg{gap:6px 12px;font-size:11px}
+  .stepper{margin-left:0;width:100%;justify-content:center;margin-top:4px}
 }
-@media(max-width:400px){
-  nav button{font-size:12px;padding:8px 10px}
-  .kpis{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
-  .mrow{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
-  .pace{grid-template-columns:repeat(auto-fit,minmax(96px,1fr))}
+@media(max-width:380px){
+  .tabbar button{font-size:9px}
+  .tabbar button svg{width:19px;height:19px}
+  .kpi .v{font-size:18px}
+  .facts{grid-template-columns:repeat(2,1fr)}
+  .mcal .dow,.mgrid{grid-template-columns:repeat(7,38px);gap:6px}
+  .wk{grid-template-columns:repeat(7,38px) auto;gap:6px}
+  .day{width:38px;height:38px;font-size:12px}
 }
 /* a phone in landscape, or any pointer-less device, should not rely on hover */
 @media(hover:none){
@@ -1370,6 +1455,40 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
   </div>
 </div>
 
+</div>
+<!-- phone navigation: the four screens you live in, plus everything else -->
+<nav class="tabbar" id="tabbar">
+  <button onclick="go(0)" data-i="0">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 12l-4-4m4 4l4-4"/><path d="M3 16v3a2 2 0 002 2h14a2 2 0 002-2v-3"/></svg>
+    Import<span class="cnt" id="tabBadge" style="display:none"></span></button>
+  <button onclick="go(2)" data-i="2">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M3 9h18M8 3v4M16 3v4" stroke-linecap="round"/><path d="M7.5 13.5h3M7.5 17h7" stroke-linecap="round"/></svg>
+    Boxes</button>
+  <button onclick="go(3)" data-i="3">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3.5L21 6"/><path d="M3 21h18"/></svg>
+    Stats</button>
+  <button onclick="go(4)" data-i="4">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 00-3.5 10.9c.5.4.8 1 .8 1.7v.4h5.4v-.4c0-.7.3-1.3.8-1.7A6 6 0 0012 3z"/><path d="M9.5 19h5M10.5 21.5h3"/></svg>
+    Insights</button>
+  <button onclick="openSheet()" id="moreBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+    More</button>
+</nav>
+<div class="sheet" id="sheet">
+  <div class="scrim" onclick="closeSheet()"></div>
+  <div class="panel">
+    <div class="grab"></div>
+    <a href="javascript:void 0" onclick="go(1);closeSheet()" data-i="1">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Log a trade</a>
+    <a href="javascript:void 0" onclick="go(5);closeSheet()" data-i="5">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg>Money</a>
+    <a href="javascript:void 0" onclick="go(6);closeSheet()" data-i="6">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>Checklist</a>
+    <a href="javascript:void 0" onclick="go(7);closeSheet()" data-i="7">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h18M3 12h18M3 17h18"/><circle cx="8" cy="7" r="2.2" fill="var(--bg)"/><circle cx="15" cy="12" r="2.2" fill="var(--bg)"/><circle cx="9.5" cy="17" r="2.2" fill="var(--bg)"/></svg>Customize</a>
+    <a href="javascript:void 0" onclick="go(8);closeSheet()" data-i="8">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>Data &amp; backup</a>
+  </div>
 </div>
 <button class="gatebtn" id="gateBtn" onclick="openGate()"><span class="pin"></span><span id="gateLbl">Trade Gate</span></button>
 <div class="ovl" id="gateOvl" onclick="if(event.target===this)closeGate()">
@@ -2349,6 +2468,8 @@ function steps(){
 function renderQueue(){
   const q=untagged(), box=document.getElementById("tagQueue"), ST=steps();
   document.getElementById("navBadge").innerHTML=q.length?`<span class="count">${q.length}</span>`:"";
+  const tb=document.getElementById("tabBadge");
+  if(tb){tb.textContent=q.length>99?"99+":q.length;tb.style.display=q.length?"grid":"none"}
   if(!q.length){
     box.innerHTML=DB.trades.length
       ? '<div class="note ok"><span class="ic">✓</span><div><b>Every trade is tagged.</b> Your dataset is complete — the analysis is running on full information.</div></div>'
@@ -5844,9 +5965,22 @@ function mapCoverage(){
 }
 
 let CUR=3;
+/* the bottom bar highlights the current screen, and "More" lights up when the
+   screen you are on lives inside the sheet */
+function syncMobileNav(){
+  const inSheet=[1,5,6,7,8];
+  document.querySelectorAll("#tabbar button[data-i]").forEach(b=>
+    b.classList.toggle("on",+b.dataset.i===CUR));
+  const more=document.getElementById("moreBtn");
+  if(more)more.classList.toggle("on",inSheet.includes(CUR));
+  document.querySelectorAll("#sheet a[data-i]").forEach(a=>
+    a.classList.toggle("on",+a.dataset.i===CUR));
+}
+function openSheet(){const s=document.getElementById("sheet");if(s)s.classList.add("on")}
+function closeSheet(){const s=document.getElementById("sheet");if(s)s.classList.remove("on")}
 function movePill(){
   const btns=document.querySelectorAll("#nav button"), b=btns[CUR], p=document.getElementById("pill");
-  if(!b)return;
+  if(!b||!b.offsetWidth)return;      // the strip is hidden on a phone; nothing to move
   p.style.width=b.offsetWidth+"px";
   p.style.transform=`translateX(${b.offsetLeft-7}px)`;
 }
@@ -5854,6 +5988,7 @@ function go(i){
   CUR=i;
   document.querySelectorAll(".page").forEach((p,j)=>p.classList.toggle("on",i===j));
   document.querySelectorAll("#nav button").forEach((x,j)=>x.classList.toggle("on",i===j));
+  syncMobileNav();
   movePill();
   const pg=document.querySelectorAll(".page")[i];
   if(pg)pg.querySelectorAll(".rv").forEach(e=>e.classList.remove("in"));
@@ -6006,13 +6141,14 @@ CUR=DB.trades.length?3:0;
 document.querySelectorAll(".page").forEach((p,j)=>p.classList.toggle("on",j===CUR));
 document.querySelectorAll("#nav button")[CUR].classList.add("on");
 render();save();          // persist the migrated config on first load
+syncMobileNav();
 window.addEventListener("load",movePill);
 setTimeout(movePill,120);
 restoreFolder();                      // the live folder reconnects itself, silently
 renderInstall();
 setInterval(refreshGate,20000);       // the gate button keeps up with the clock
 document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"){closeGate();["cardOvl","shotOvl"].forEach(id=>document.getElementById(id).classList.remove("on"))}
+  if(e.key==="Escape"){closeGate();closeSheet();["cardOvl","shotOvl"].forEach(id=>document.getElementById(id).classList.remove("on"))}
 });
 </script>
 </body>

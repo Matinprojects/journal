@@ -1336,13 +1336,26 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 <!-- 8 · DATA -->
 <div class="page">
   <div class="card rv">
+    <h2><span class="dot"></span>Move Your Journal Between Devices<span class="tail" id="bkTail"></span></h2>
+    <p class="hint">Your journal lives in this browser, on this device. It is not on a server and nobody else can see it — which also means it does not appear by itself on your phone or your other computer. This is how you move it, and how you keep a backup that survives anything.</p>
+    <div class="row" style="margin-bottom:12px">
+      <button class="btn" onclick="exportAll()">Save my journal to a file</button>
+      <label class="btn sec" style="margin:0;cursor:pointer">Load a journal file<input type="file" accept=".json" onchange="importAll(this)" style="display:none"></label>
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:12px;color:var(--txt2);margin:0">
+        <input type="checkbox" id="bkShots" style="width:auto"> include chart images
+      </label>
+    </div>
+    <div id="bkNote"></div>
+  </div>
+
+  <div class="card rv" style="--d:30ms">
     <h2><span class="dot"></span>All Trades<span class="tail" id="tradeCount"></span></h2>
     <div class="row" style="margin-bottom:16px">
       <button class="btn sec sm" onclick="exportCSV()">Export CSV</button>
       <button class="btn danger sm" onclick="wipe()">Erase all trades</button>
       <button class="btn danger sm" onclick="startFresh()">Start fresh</button>
     </div>
-    <p class="hint" style="margin-bottom:16px"><b>Erase all trades</b> clears the history but leaves your boxes standing. <b>Start fresh</b> also removes the boxes — use it when you're beginning a new campaign and want nothing carried over. Neither one touches your strategies, session windows, checklist or money ledger. Export a CSV first either way: it is a complete backup and restores perfectly on re-import.</p>
+    <p class="hint" style="margin-bottom:16px"><b>Erase all trades</b> clears the history but leaves your boxes standing. <b>Start fresh</b> also removes the boxes — use it when you're beginning a new campaign and want nothing carried over. Neither one touches your strategies, session windows, checklist or money ledger. Export first either way. <b>Save my journal to a file</b> above is the complete backup — a CSV carries only the trades, not your boxes, money ledger or settings.</p>
     <div class="row" style="margin-bottom:16px">
       <button class="btn sec sm" onclick="copyDiagnostics()">Copy a bug report</button>
       <span id="fbBtn"></span>
@@ -4536,8 +4549,9 @@ function renderData(){
     <td><button class="btn sec sm" onclick="del(${x.id})">✕</button></td></tr>`}).join("")+`</tbody>`;
   const fbb=document.getElementById("fbBtn");
   if(fbb)fbb.innerHTML=CFG.feedback
-    ? `<a class="btn sec sm" href="${esc(CFG.feedback)}" target="_blank" rel="noopener noreferrer"
+    ? `<a class="btn sec sm" href="${esc(reportUrl())}" target="_blank" rel="noopener noreferrer"
          style="text-decoration:none;display:inline-flex;align-items:center">Report an issue</a>`:"";
+  renderBackup();
   const vl=document.getElementById("verLine");
   if(vl)vl.innerHTML=`Trading Journal <b class="mono">${APP_VERSION}</b> · Matin Projects`
     +(standalone()?" · running as an installed app":SERVED?"":" · opened straight from a file");
@@ -4584,6 +4598,112 @@ function startFresh(){
   if(DB.sync)DB.sync.last="";      // let the folder re-read the whole export next time
   save();render();go(2);
   toast("Clean slate — open your box below");
+}
+
+/* ============================================================
+   THE WHOLE JOURNAL AS ONE FILE
+   A CSV carries trades. This carries everything — boxes, the money
+   ledger, your settings, your checklist, optionally the chart images.
+   It is how the same journal reaches your phone, and it is the backup
+   that survives a cleared browser.
+   ============================================================ */
+const BK_FORMAT="matin-journal-backup";
+async function exportAll(){
+  const withShots=(document.getElementById("bkShots")||{}).checked;
+  const note=document.getElementById("bkNote");
+  if(note)note.innerHTML=`<div class="mini">Packing…</div>`;
+  const pack={
+    format:BK_FORMAT, version:1, app:APP_VERSION,
+    saved:new Date().toISOString(), savedLocal:todayStr(),
+    device:(navigator.userAgent||"").slice(0,120),
+    data:{
+      trades:DB.trades, sessions:DB.sessions, checks:DB.checks, rules:DB.rules,
+      boxes:DB.boxes, money:DB.money, invests:DB.invests, map:DB.map,
+      cutoff:DB.cutoff||"", lock:DB.lock||null, cfg:CFG
+    },
+    shots:{}
+  };
+  if(withShots){
+    const withImg=DB.trades.filter(t=>t.shot);
+    for(const t of withImg){
+      try{const src=await shotGet(t); if(src)pack.shots[shotKey(t)]=src}catch(e){}
+    }
+  }
+  const txt=JSON.stringify(pack);
+  const kb=Math.round(txt.length/1024);
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));
+  a.download="journal-"+todayStr()+".json";
+  a.click();
+  const n=Object.keys(pack.shots).length;
+  if(note)note.innerHTML=`<div class="note ok"><span class="ic">✓</span><div>
+    Saved <b>journal-${todayStr()}.json</b> — ${kb>1024?(kb/1024).toFixed(1)+" MB":kb+" KB"}.
+    ${DB.trades.length} trades · ${boxes().length} boxes · ${(DB.money||[]).length} money entries${
+      n?` · ${n} chart images`:(withShots?"":" · images not included")}.
+    <br><br>Send that file to your other device — email it to yourself, AirDrop it, put it in a chat with yourself —
+    then open the journal there and press <b>Load a journal file</b>.</div></div>`;
+  toast("Journal saved");
+}
+function importAll(inp){
+  const f=inp.files&&inp.files[0]; inp.value="";
+  if(!f)return;
+  const note=document.getElementById("bkNote");
+  const r=new FileReader();
+  r.onload=async()=>{
+    let pack;
+    try{pack=JSON.parse(r.result)}catch(e){
+      if(note)note.innerHTML=`<div class="note warn"><span class="ic">!</span><div>That file isn't readable as a journal file.</div></div>`;
+      return toast("Could not read that file",1);
+    }
+    if(!pack||pack.format!==BK_FORMAT||!pack.data){
+      if(note)note.innerHTML=`<div class="note warn"><span class="ic">!</span><div>
+        That is not a journal file. If you meant to bring in <b>trades only</b>, use the CSV importer on the Import tab instead.</div></div>`;
+      return toast("Not a journal file",1);
+    }
+    const d=pack.data;
+    const inN=(d.trades||[]).length, haveN=DB.trades.length;
+    const shots=pack.shots||{}, shotN=Object.keys(shots).length;
+    const when=pack.savedLocal||String(pack.saved||"").slice(0,10);
+    const msg=haveN
+      ? `This file holds ${inN} trades, saved ${when}.\n\nYou already have ${haveN} trades here.\n\n`
+        +`OK = REPLACE everything on this device with the file.\nCancel = MERGE — keep what you have and add only trades that are missing.`
+      : `Restore ${inN} trades from ${when}?`;
+    const replace=haveN?confirm(msg):(confirm(msg)||true);
+    if(haveN&&!replace){
+      // merge: only trades that are not already here, config left alone
+      const keyOf=t=>t.ticket?("T"+t.ticket):(t.date+t.time+t.symbol+n2(t.pnl));
+      const have=new Set(DB.trades.map(keyOf));
+      let added=0;
+      (d.trades||[]).forEach(t=>{const k=keyOf(t);if(!have.has(k)){have.add(k);DB.trades.push(t);added++}});
+      DB.trades.sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+      recomputeTradeNos();
+      for(const k of Object.keys(shots)){try{await idbPut(k,shots[k],"shots")}catch(e){}}
+      assignBoxes();save();render();
+      if(note)note.innerHTML=`<div class="note ok"><span class="ic">✓</span><div>
+        Merged. <b>${added}</b> new trades added, ${inN-added} were already here.
+        Your boxes and settings on this device were left as they were.</div></div>`;
+      return toast(added+" trades merged");
+    }
+    // replace
+    DB.trades=d.trades||[]; DB.sessions=d.sessions||[]; DB.checks=d.checks||{};
+    DB.rules=d.rules||[]; DB.boxes=d.boxes||[]; DB.money=d.money||[];
+    DB.invests=d.invests||[]; DB.map=d.map||{}; DB.cutoff=d.cutoff||""; DB.lock=d.lock||null;
+    if(d.cfg)CFG=migrate(d.cfg);
+    try{await idbClear("shots")}catch(e){}
+    for(const k of Object.keys(shots)){try{await idbPut(k,shots[k],"shots")}catch(e){}}
+    DB.seen=true; assignBoxes(); save(); buildForm(); render();
+    if(note)note.innerHTML=`<div class="note ok"><span class="ic">✓</span><div>
+      Restored from <b>${esc(when)}</b> — ${DB.trades.length} trades, ${boxes().length} boxes,
+      ${(DB.money||[]).length} money entries${shotN?`, ${shotN} chart images`:""}.
+      ${shotN?"":`<br><span class="mini">That file was saved without chart images, so any charts stay on the device they were added to.</span>`}</div></div>`;
+    toast("Journal restored");
+  };
+  r.readAsText(f);
+}
+function renderBackup(){
+  const t=document.getElementById("bkTail"); if(!t)return;
+  const imgs=DB.trades.filter(x=>x.shot).length;
+  t.textContent=`${DB.trades.length} trades · ${boxes().length} boxes${imgs?` · ${imgs} charts`:""}`;
 }
 
 /* ============================================================
@@ -5821,8 +5941,36 @@ async function doInstall(){
   INSTALLPROMPT=null; renderInstall();
 }
 /* A tester's report is only useful with the build and the browser attached. */
-function copyDiagnostics(){
+/* A GitHub issues link can carry the report with it, so the tester lands on a
+   form that is already filled in and only has to describe what happened. */
+function reportUrl(){
+  const base=CFG.feedback||"";
+  if(!/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/?$/.test(base))return base;
+  const b=diagnosticsText()+"\n\n(the lines above are automatic — please fill in the three below)";
+  return base.replace(/\/?$/,"/")+"new?title="+encodeURIComponent("Bug: ")
+    +"&body="+encodeURIComponent(b);
+}
+function diagnosticsText(){
   const s=stats(DB.trades);
+  return [
+    "**Build**   `"+APP_VERSION+"`",
+    "**Opened**  "+(standalone()?"installed app":SERVED?"browser":"local file"),
+    "**Browser** "+navigator.userAgent,
+    "**Screen**  "+window.innerWidth+"x"+window.innerHeight,
+    "**Storage** "+(STORE_OK?"working":"BLOCKED ("+STORE_WHY+")"),
+    "**Data**    "+DB.trades.length+" trades · "+boxes().length+" boxes · "
+      +DB.trades.filter(isTagged).length+" tagged",
+    "",
+    "---",
+    "",
+    "**What I was doing:**",
+    "",
+    "**What I expected:**",
+    "",
+    "**What happened:**"
+  ].join("\n");
+}
+function copyDiagnostics(){
   const lines=[
     "--- Trading Journal diagnostics ---",
     "Version:  "+APP_VERSION,
@@ -5834,7 +5982,6 @@ function copyDiagnostics(){
     "Storage:  "+(STORE_OK?"working":"BLOCKED ("+STORE_WHY+")"),
     "Trades:   "+DB.trades.length+"  ·  boxes: "+boxes().length+"  ·  money rows: "+(DB.money||[]).length,
     "Tagged:   "+DB.trades.filter(isTagged).length,
-    "Net P/L:  "+n2(s.pnl)+"   Total R: "+n2(s.totR),
     "Windows:  "+(CFG.sessions||[]).length+"  ·  strategies: "+(CFG.strategies||[]).length,
     "Live sync:"+(DB.sync?" connected":" off"),
     "-----------------------------------",

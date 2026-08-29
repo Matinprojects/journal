@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Install the Trading Journal — Matin Projects</title>
+<meta name="theme-color" content="#0A0908">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0908; --surface:#141110;
+  --gold:#D4AF37; --gold-lt:#E8C87E;
+  --grad-gold:linear-gradient(135deg,#EFD489 0%,#D4AF37 46%,#B08A28 100%);
+  --line:rgba(212,175,55,.14); --line2:rgba(255,255,255,.06);
+  --txt:#F6F3ED; --txt2:#CDC6BB; --dim:#8E877D;
+  --ease-out:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);min-height:100vh;
+  font-family:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;line-height:1.7;letter-spacing:-.005em;-webkit-font-smoothing:antialiased}
+.amb{position:fixed;inset:0;pointer-events:none;z-index:0}
+.amb:before{content:"";position:absolute;width:60vw;height:60vw;top:-28vw;right:-18vw;border-radius:50%;
+  filter:blur(120px);background:radial-gradient(circle,rgba(212,175,55,.13),transparent 65%)}
+.wrap{position:relative;z-index:2;max-width:760px;margin:0 auto;
+  padding:0 max(20px,env(safe-area-inset-left)) 70px max(20px,env(safe-area-inset-right))}
+header{display:flex;align-items:center;gap:12px;padding:26px 0 30px}
+header img{width:42px;height:42px;border-radius:11px}
+header .n{font-weight:800;font-size:17px;letter-spacing:-.02em}
+header .n i{color:var(--gold);font-style:normal}
+header .p{font-size:11.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
+h1{font-size:31px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-bottom:12px}
+h1 span{background:var(--grad-gold);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.lede{color:var(--txt2);font-size:15px;max-width:60ch;margin-bottom:26px}
+.cta{display:inline-flex;align-items:center;gap:9px;background:var(--grad-gold);color:#120E06;
+  text-decoration:none;padding:14px 26px;border-radius:11px;font-weight:800;font-size:14.5px;
+  box-shadow:0 14px 34px -14px rgba(212,175,55,.85);transition:transform .3s var(--ease-out)}
+.cta:hover{transform:translateY(-2px)}
+.card{background:linear-gradient(168deg,rgba(26,22,20,.9),rgba(16,13,12,.9));border:1px solid var(--line2);
+  border-radius:16px;padding:22px 24px;margin-bottom:14px}
+.card h2{font-size:15.5px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.card h2 .d{width:6px;height:6px;border-radius:50%;background:var(--grad-gold);flex:0 0 auto}
+.card .sub{font-size:12px;color:var(--dim);margin-bottom:14px}
+ol,ul{margin:0 0 0 18px;color:var(--txt2);font-size:13.5px}
+li{margin-bottom:7px}
+b,strong{color:var(--txt)}
+.k{display:inline-block;background:rgba(255,255,255,.07);border:1px solid var(--line2);border-radius:6px;
+  padding:1px 7px;font-size:12px;font-family:"JetBrains Mono",monospace;color:var(--gold-lt)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}h1{font-size:25px}}
+.note{display:flex;gap:12px;background:rgba(212,175,55,.06);border:1px solid var(--line);
+  border-radius:12px;padding:15px 17px;margin:22px 0;font-size:13px;color:var(--txt2)}
+.note .i{color:var(--gold);font-size:15px;line-height:1.3}
+.sec{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);
+  margin:34px 0 12px}
+footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--line2);font-size:12px;color:var(--dim);
+  display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap}
+a{color:var(--gold-lt)}
+</style>
+</head>
+<body>
+<div class="amb"></div>
+<div class="wrap">
+
+<header>
+  <img src="icons/icon-192.png" alt="">
+  <div><div class="n">Matin <i>Projects</i></div><div class="p">Trading Journal · beta</div></div>
+</header>
+
+<h1>Install it once.<br><span>Then it opens like an app.</span></h1>
+<p class="lede">The journal runs entirely on your own device. No account, no sign-up, and nothing about your trading is ever sent anywhere. Adding it to your home screen makes it full screen and lets it work with no internet at all.</p>
+<a class="cta" href="index.html">Open the journal &nbsp;→</a>
+
+<div class="sec">Install it</div>
+<div class="grid">
+  <div class="card">
+    <h2><span class="d"></span>iPhone &amp; iPad</h2>
+    <div class="sub">Must be Safari — other browsers on iOS cannot install</div>
+    <ol>
+      <li>Open the link in <b>Safari</b></li>
+      <li>Tap <b>Share</b> — the square with an arrow, at the bottom</li>
+      <li>Scroll down and tap <b>Add to Home Screen</b></li>
+      <li>Tap <b>Add</b></li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2><span class="d"></span>Android</h2>
+    <div class="sub">Chrome, Edge, Samsung Internet</div>
+    <ol>
+      <li>Open the link in <b>Chrome</b></li>
+      <li>Tap the <b>⋮</b> menu, top right</li>
+      <li>Tap <b>Install app</b> or <b>Add to Home screen</b></li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2><span class="d"></span>Windows &amp; Mac</h2>
+    <div class="sub">Chrome or Edge</div>
+    <ol>
+      <li>Open the link</li>
+      <li>Click the <b>install icon</b> on the right of the address bar</li>
+      <li>Or menu → <b>Install Trading Journal</b></li>
+    </ol>
+  </div>
+  <div class="card">
+    <h2><span class="d"></span>Prefer not to install?</h2>
+    <div class="sub">Everything still works</div>
+    <ul>
+      <li>Just <b>bookmark the link</b> and open it from there</li>
+      <li>Use the <b>same browser every time</b> — your journal is stored in that browser</li>
+    </ul>
+  </div>
+</div>
+
+<div class="note"><span class="i">◈</span><div>
+  <b>Where your data lives.</b> Your trades are stored by the browser on your own device. Nothing is uploaded and there is no server holding it. That also means clearing your browsing data erases it — so once a week open <b>Data → Export CSV</b>. That file is a complete backup and restores everything, tags included.
+</div></div>
+
+<div class="sec">First ten minutes</div>
+<div class="card">
+  <ol>
+    <li><b>Customize</b> — replace the sample strategies with your own, set your session windows to your platform's clock, and mark which mental states are good and bad for you. Everything the analysis says is built on those labels.</li>
+    <li><b>Boxes</b> — open a box. Decide how many trades you are committing to and under what rules, then fill in your capital and weekly withdrawal share.</li>
+    <li><b>Import</b> — set a start date, then give it your broker statement. In MetaTrader: <b>History</b> → right-click → <b>Report</b> → save as HTML. Duplicates are skipped, so you can drop the same file in every day.</li>
+    <li><b>Tag</b> the trades that come in — four keystrokes each.</li>
+    <li>Before your next trade, press <b>Trade Gate</b>.</li>
+  </ol>
+</div>
+
+<div class="sec">You are testing a beta</div>
+<div class="card">
+  <div class="sub">What would help most</div>
+  <ul>
+    <li>Anything that <b>looks broken or overflows</b> on your screen — a photo is perfect</li>
+    <li>A number you think is <b>wrong</b>. Say what you expected and what you saw</li>
+    <li>Anywhere you <b>did not understand</b> what a screen was asking for</li>
+    <li>Whether your broker's statement <b>imported cleanly</b>, and which broker it was</li>
+  </ul>
+  <p style="margin-top:14px;font-size:13.5px;color:var(--txt2)">In the app, open <b>Data</b> and press <span class="k">Copy a bug report</span>. It puts the version, your browser and a summary on your clipboard — paste that in with your message so the report can actually be tracked down.</p>
+</div>
+
+<footer>
+  <span>Built by Matin Projects</span>
+  <span>Your data never leaves your device</span>
+</footer>
+
+</div>
+</body>
+</html>

@@ -694,6 +694,41 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .dowbar .t i{position:absolute;top:0;bottom:0;border-radius:4px;width:0;transition:width .8s var(--ease-out)}
 .dowbar .n{font-family:"JetBrains Mono",monospace;text-align:right;font-size:11px}
 .dowbar.pd .d{color:var(--gold)}
+/* ---------- the trading report ---------- */
+.rpgrade{display:flex;gap:20px;align-items:center;padding:20px 22px;border-radius:var(--r);
+  background:linear-gradient(150deg,rgba(255,255,255,.045),rgba(255,255,255,.01));
+  border:1px solid var(--line2);margin-bottom:22px}
+.rpgrade .g{flex:0 0 auto;width:74px;height:74px;border-radius:50%;border:2.5px solid;
+  display:grid;place-items:center;font-size:34px;font-weight:800;letter-spacing:-.03em}
+.rpgrade .h{font-size:19px;font-weight:800;letter-spacing:-.025em;line-height:1.2}
+.rpgrade .s{font-size:12.5px;color:var(--txt2);margin-top:5px;line-height:1.6}
+.rpsec{margin-bottom:22px}
+.rpsec .st{display:flex;align-items:center;gap:10px;font-size:10.5px;font-weight:700;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:12px}
+.rpsec .st:before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.rpsec .st.good{color:var(--win)}
+.rpsec .st.bad{color:var(--loss)}
+.rpsec .st.warn{color:var(--warn)}
+.rpsec .st span{margin-left:auto;font-size:10px;letter-spacing:.06em;color:var(--dim);text-transform:none;font-weight:500}
+.rpitem{border-left:2.5px solid var(--line2);padding:12px 0 12px 16px;margin-bottom:12px;
+  animation:slidein .45s var(--ease-out) both}
+.rpitem.good{border-color:rgba(63,207,142,.55)}
+.rpitem.bad{border-color:rgba(240,84,79,.55)}
+.rpitem.warn{border-color:rgba(232,163,61,.55)}
+.rpitem b{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.rpitem p{font-size:12.5px;color:var(--txt2);line-height:1.7;margin-top:5px}
+.rphead{display:flex;align-items:baseline;gap:14px}
+.rphead .cost{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:16px;font-weight:700;
+  color:var(--loss);text-align:right;white-space:nowrap}
+.rphead .cost small{display:block;font-size:10px;font-weight:500;color:var(--dim)}
+.rpfix{margin-top:9px;font-size:12.5px;color:var(--txt2);line-height:1.7;
+  background:rgba(212,175,55,.055);border-radius:9px;padding:10px 13px}
+.rpfix .k{display:block;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--gold);margin-bottom:4px}
+.rpgain{margin-top:8px;font-size:11.5px;color:var(--win);font-family:"JetBrains Mono",monospace}
+.rpplan{margin:0;padding-left:20px;color:var(--txt2);font-size:13px;line-height:1.85}
+.rpplan li{margin-bottom:9px}
+.rpplan b{color:var(--txt)}
 /* ============================================================
    PHONE
    Nine tabs in a wrapping row is a desktop pattern. On a phone the
@@ -1197,7 +1232,17 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 
 <!-- 4 · INSIGHTS -->
 <div class="page">
-  <div class="card rv">
+  <div class="card rv" id="s-report">
+    <h2><span class="dot"></span>Trading Report<span class="tail" id="rpTail"></span></h2>
+    <p class="hint">One read of everything you have logged: where your money actually comes from, where it leaks out, and what to change first. Every line is measured against your own trades — nothing here is generic advice, and nothing is shown until there is enough data to mean it.</p>
+    <div id="report"></div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn sec sm" onclick="copyBrief()">Copy a summary for an AI</button>
+      <span class="mini">Anonymous — numbers only, no broker, no account, no dates. Paste it into any AI for a second opinion.</span>
+    </div>
+  </div>
+
+  <div class="card rv" style="--d:60ms">
     <h2><span class="dot"></span>Automated Analysis</h2>
     <p class="hint">Reads your statistics and returns actionable hypotheses. Only patterns that clear your minimum sample size are shown — everything else is noise. Thresholds are yours to set in Customize.</p>
     <div id="insights"></div>
@@ -4033,7 +4078,7 @@ function render(){
   document.getElementById("tables").innerHTML=T.map(([n,k],i)=>tableFor(n,tr,k,i)).join("");
   requestAnimationFrame(()=>document.querySelectorAll("#tables .bar>i").forEach(b=>b.style.width=b.dataset.w+"%"));
   buildForm();renderBoxes();renderBoxForm();insights(tr);renderData();renderChecklist();renderQueue();renderBulk();renderEditors();renderCF();renderBulkList();renderChkEditor();
-  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();
+  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderReport();
   observe();spy();
 }
 function tableFor(name,tr,key,idx){
@@ -5304,6 +5349,261 @@ function renderDiscipline(tr){
       ${D.broke?`<div class="mini" style="color:var(--loss)">−${D.broke*3} for ${D.broke} lockout override${D.broke===1?"":"s"}</div>`:""}
     </div></div>`;
   requestAnimationFrame(()=>host.querySelectorAll(".dbreak .bar>i").forEach(i=>i.style.width=i.dataset.w+"%"));
+}
+
+/* ============================================================
+   THE TRADING REPORT
+   A leak is a group of trades that loses money the rest of your
+   trading has to pay for. Each check below finds one, prices it in R,
+   and says what removing it would do to your expectancy. Everything
+   is measured against this trader's own record — no generic advice.
+   ============================================================ */
+function diagnose(tr){
+  const M=MIN(), need=M.slice, S=stats(tr), out={leaks:[],strengths:[],notes:[]};
+  out.S=S; out.n=tr.length;
+  if(tr.length<M.total){out.thin=M.total-tr.length;return out}
+
+  /* what the account looks like without a given set of trades */
+  const without=list=>{const bad=new Set(list);return stats(tr.filter(t=>!bad.has(t)))};
+  const add=(o)=>{ if(o&&o.list.length>=Math.max(3,Math.floor(need/2)))out.leaks.push(o) };
+  const price=(list,title,why,fix)=>{
+    const a=stats(list), after=without(list);
+    return {title,why,fix,list,n:a.n,exp:a.exp,costR:a.totR,
+      gain:after.exp-S.exp, afterExp:after.exp};
+  };
+
+  // 1 · breaking your own rules
+  const full=adhName("full"), tg=tr.filter(isTagged);
+  if(tg.length>=need){
+    const broke=tg.filter(t=>t.adh!==full);
+    if(broke.length>=need/2){
+      const kept=stats(tg.filter(t=>t.adh===full)), b=stats(broke);
+      if(b.exp<kept.exp)add(price(broke,"Trades taken off-plan",
+        `Following your rules returns ${n2(kept.exp)}R a trade. Breaking them returns ${n2(b.exp)}R.`,
+        "This is the cheapest fix in trading because it costs nothing to make — the system is already good enough, the execution is not."));
+    }
+  }
+  // 2 · the state you were in
+  const bad=badStates();
+  if(bad.length){
+    const tilt=tr.filter(t=>bad.includes(t.emo));
+    if(tilt.length){const g=stats(tr.filter(t=>goodStates().includes(t.emo)));
+      const b=stats(tilt);
+      if(b.exp<g.exp)add(price(tilt,"Trading in a bad state",
+        `${b.n} trades taken while ${[...new Set(tilt.map(t=>t.emo))].slice(0,3).join(", ")}. They return ${n2(b.exp)}R against ${n2(g.exp)}R when you were clear.`,
+        "The fix is not willpower, it is a rule that fires before you can argue: after the state appears, the day is over."));}
+  }
+  // 3 · the wrong hours
+  const byWin=group(tr,t=>t.session);
+  Object.entries(byWin).forEach(([k,v])=>{
+    const st=stats(v);
+    if(st.n>=need&&st.exp<0&&st.totR<-1)
+      add(price(v,`The ${k} window`,
+        `${st.n} trades there, ${n2(st.totR)}R in total, ${n2(st.exp)}R each.`,
+        `Stop trading it for one full box and compare. This is the easiest leak to close because it needs no new skill — only that you are not at the screen.`));
+  });
+  // 4 · a strategy that does not pay
+  group(tr,t=>t.strat)&&Object.entries(group(tr,t=>t.strat)).forEach(([k,v])=>{
+    if(!k)return; const st=stats(v);
+    if(st.n>=need&&st.exp<0&&st.totR<-1)
+      add(price(v,`The ${k} setup`,
+        `${st.n} trades, ${n2(st.totR)}R, ${n2(st.exp)}R each.`,
+        "Either it needs a filter it does not have yet, or it belongs to a market condition you are not checking for. Paper-trade it for a month before it costs you again."));
+  });
+  // 5 · how many trades a day is too many
+  const byNo=group(tr,t=>String(t.tradeNo));
+  const nums=Object.keys(byNo).map(Number).filter(x=>x>0).sort((a,b)=>a-b);
+  let cut=0;
+  for(const i of nums){const st=stats(byNo[String(i)]);
+    if(st.n>=need&&st.exp<0){cut=i;break}}
+  if(cut>1){
+    const late=tr.filter(t=>+t.tradeNo>=cut);
+    add(price(late,`Trade #${cut} onward`,
+      `From the ${cut}${cut===2?"nd":cut===3?"rd":"th"} trade of a day, expectancy turns negative.`,
+      `Set your daily cap to ${cut-1}. Not as a suggestion — as the number the Trade Gate refuses to let you past.`));
+  }
+  // 6 · what a losing streak does to you
+  const seq=tr.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const revenge=[];
+  for(let i=1;i<seq.length;i++)
+    if(isStop(seq[i-1])&&seq[i].date===seq[i-1].date)revenge.push(seq[i]);
+  if(revenge.length>=need){
+    const r=stats(revenge), rest=stats(seq.filter(t=>!revenge.includes(t)));
+    if(r.exp<rest.exp)add(price(revenge,"The trade right after a stop",
+      `${r.n} trades taken straight after a loss on the same day: ${n2(r.exp)}R each, against ${n2(rest.exp)}R otherwise.`,
+      "A fixed pause after every stop — ten minutes away from the screen — costs you nothing and removes this entirely."));
+  }
+  // 7 · losses bigger than the risk you set
+  const over=tr.filter(t=>t.r<-1.25);
+  if(over.length>=Math.max(3,need/2)){
+    const extra=sum(over.map(t=>-1-t.r));
+    out.notes.push({t:"Losses running past your stop",
+      b:`${over.length} trades lost more than 1.25R. Together they gave away <b>${n2(extra)}R</b> beyond what you had decided to risk.`,
+      f:"Either the stop is being moved, or it is being placed where the spread can reach it. Both are mechanical problems with mechanical fixes."});
+  }
+  // 8 · winners cut before they finished
+  const early=tr.filter(t=>exitRole(t.exitreason)==="early"&&+t.mfe>0);
+  if(early.length>=Math.max(3,need/2)){
+    const left=sum(early.map(t=>Math.max(0,(+t.mfe)-t.r)));
+    if(left>1)out.notes.push({t:"Winners closed early",
+      b:`${early.length} trades were closed by hand while still running. Between where you exited and how far they went sits <b>${n2(left)}R</b>.`,
+      f:"Not every one of those would have been captured — but if the number is large, your target is not the problem, your patience is."});
+  }
+  // 9 · is the edge still there
+  if(tr.length>=Math.max(40,M.total*1.5)){
+    const half=Math.floor(seq.length/2);
+    const a=stats(seq.slice(0,half)), b=stats(seq.slice(half));
+    const drop=a.exp-b.exp;
+    if(drop>0.15&&a.n>=need&&b.n>=need)
+      out.notes.push({t:"The edge is fading",
+        b:`First half of your record: ${n2(a.exp)}R a trade. Second half: ${n2(b.exp)}R.`,
+        f:"Something changed — the market, your sizing, or your discipline. Compare the two halves in Cross Analysis before assuming it is the market."});
+    else if(drop<-0.15&&a.n>=need&&b.n>=need)
+      out.strengths.push({t:"You are getting better",
+        b:`Expectancy moved from ${n2(a.exp)}R to ${n2(b.exp)}R between the first and second half of your record.`});
+  }
+  // 10 · risk that will not sit still
+  const risks=tr.map(t=>+t.risk).filter(x=>x>0);
+  if(risks.length>=need){
+    const m=avg(risks), sd=Math.sqrt(avg(risks.map(x=>(x-m)*(x-m))));
+    if(m>0&&sd/m>0.35)out.notes.push({t:"Position size wanders",
+      b:`Your risk per trade averages $${n2(m)} but swings by $${n2(sd)}. Uneven sizing is the quietest way to make a good system look bad — one oversized loss erases many correct trades.`,
+      f:"Pick one number and let the risk ladder in your box move it, not your mood."});
+  }
+
+  /* ---- what is working ---- */
+  const best=(g,label)=>{
+    const rows=Object.entries(g).map(([k,v])=>[k,stats(v)])
+      .filter(x=>x[0]&&x[1].n>=need&&x[1].exp>0).sort((a,b)=>b[1].exp-a[1].exp);
+    if(rows.length)out.strengths.push({t:label+": "+rows[0][0],
+      b:`${n2(rows[0][1].exp)}R a trade over ${rows[0][1].n} trades, ${pct(rows[0][1].wr)} of them winners.`});
+  };
+  best(byWin,"Best window");
+  best(group(tr,t=>t.strat),"Best setup");
+  best(group(tr,t=>t.day),"Best weekday");
+  if(S.payoff>=1.8)out.strengths.push({t:"Your winners outsize your losers",
+    b:`Average win is ${n2(S.payoff)}× the average loss. That is what lets a modest win rate still compound.`});
+  if(tg.length>=need){
+    const adh=tr.filter(t=>t.adh===full).length/tg.length;
+    if(adh>=0.9)out.strengths.push({t:"You do what you said you would",
+      b:`${pct(adh)} of tagged trades followed your rules exactly. Most traders never get here.`});
+  }
+
+  out.leaks.sort((a,b)=>a.costR-b.costR);       // most expensive first
+  const worst=out.leaks[0];
+  const clean=worst?worst.afterExp:S.exp;
+  out.grade=(()=>{
+    let p=0;
+    if(S.exp>0.25)p+=3; else if(S.exp>0.1)p+=2; else if(S.exp>0)p+=1;
+    if(S.pf>=1.5)p+=2; else if(S.pf>=1.2)p+=1;
+    if(S.payoff>=1.5)p+=1;
+    if(out.leaks.length===0)p+=2; else if(out.leaks.length<=2)p+=1;
+    if(tg.length>=need&&tr.filter(t=>t.adh===full).length/Math.max(1,tg.length)>=0.85)p+=1;
+    return p>=8?"A":p>=6?"B":p>=4?"C":p>=2?"D":"F";
+  })();
+  out.recoverable=clean-S.exp;
+  return out;
+}
+function renderReport(){
+  const host=document.getElementById("report"); if(!host)return;
+  const tr=filtered(), D=diagnose(tr), M=MIN();
+  document.getElementById("rpTail").textContent=`${tr.length} trades in view`;
+  if(D.thin){
+    host.innerHTML=`<div class="note warn"><span class="ic">◔</span><div>
+      <b>${D.thin} more trades and this report writes itself.</b>
+      Below ${M.total} trades any pattern you find is probably luck, and a report built on luck is worse than no report.
+      Keep logging honestly and keep the size small — that is the whole job right now.</div></div>`;
+    return;
+  }
+  const S=D.S;
+  const GC={A:"#5FE0A6",B:"#9BE3B8",C:"#F2BB63",D:"#F0A04F",F:"#F5716C"}[D.grade];
+  const GW={A:"Working, and disciplined",B:"Working, with something to tidy",
+    C:"An edge buried under leaks",D:"The leaks are bigger than the edge",F:"No edge yet"}[D.grade];
+
+  host.innerHTML=`
+  <div class="rpgrade">
+    <div class="g" style="color:${GC};border-color:${GC}">${D.grade}</div>
+    <div>
+      <div class="h">${GW}</div>
+      <div class="s">${S.n} trades · ${n2(S.exp)}R each · profit factor ${S.pf>=99?"∞":n2(S.pf)} · ${pct(S.wr)} win rate</div>
+      ${D.recoverable>0.02?`<div class="s" style="color:var(--gold-lt);margin-top:6px">
+        Closing your biggest leak alone would move expectancy to <b>${n2(D.leaks[0].afterExp)}R</b> — that is
+        <b>${n2(D.recoverable)}R more on every trade you take</b>.</div>`:""}
+    </div>
+  </div>
+
+  ${D.strengths.length?`<div class="rpsec"><div class="st good">What is working</div>
+    ${D.strengths.map(x=>`<div class="rpitem good"><b>${esc(x.t)}</b><p>${x.b}</p></div>`).join("")}
+  </div>`:""}
+
+  ${D.leaks.length?`<div class="rpsec"><div class="st bad">Where the money leaks out<span>${D.leaks.length} found · worst first</span></div>
+    ${D.leaks.map((l,i)=>`<div class="rpitem bad">
+      <div class="rphead"><b>${i+1}. ${esc(l.title)}</b>
+        <span class="cost">${n2(l.costR)}R<small>${l.n} trades</small></span></div>
+      <p>${l.why}</p>
+      <div class="rpfix"><span class="k">Do this</span>${l.fix}</div>
+      ${l.gain>0.01?`<div class="rpgain">Removing these takes every other trade from
+        ${n2(S.exp)}R to <b>${n2(l.afterExp)}R</b></div>`:""}
+    </div>`).join("")}
+  </div>`:`<div class="note ok" style="margin-top:16px"><span class="ic">✓</span><div>
+    <b>No group of trades is losing money for the rest.</b> Nothing in your record stands out as a leak that clears the sample size you set. Keep the size steady and keep going.</div></div>`}
+
+  ${D.notes.length?`<div class="rpsec"><div class="st warn">Worth a look</div>
+    ${D.notes.map(x=>`<div class="rpitem warn"><b>${esc(x.t)}</b><p>${x.b}</p>
+      <div class="rpfix"><span class="k">Do this</span>${x.f}</div></div>`).join("")}
+  </div>`:""}
+
+  <div class="rpsec"><div class="st">In order, this week</div>
+    <ol class="rpplan">${(()=>{
+      const steps=[];
+      if(S.exp<=0)steps.push("Cut your risk per trade in half until expectancy is positive. Nothing else on this list matters while the edge is negative.");
+      D.leaks.slice(0,3).forEach(l=>steps.push(`<b>${esc(l.title)}</b> — ${l.fix.split(".")[0]}.`));
+      D.notes.slice(0,2).forEach(x=>steps.push(`<b>${esc(x.t)}</b> — ${x.f.split(".")[0]}.`));
+      if(!steps.length)steps.push("Nothing needs fixing. Add trades, keep the risk constant, and let the sample grow.");
+      steps.push("Come back to this page after another 30 trades. Fix one thing at a time, or you will never know which change worked.");
+      return steps.map(s=>`<li>${s}</li>`).join("");
+    })()}</ol>
+  </div>`;
+}
+/* a compact, anonymous brief the trader can paste into any AI */
+function briefText(){
+  const tr=filtered(), D=diagnose(tr), S=D.S, M=MIN();
+  const L=[];
+  L.push("Act as a trading performance coach. Below is my journal, summarised. Tell me what to fix first and why, and challenge anything I seem to be assuming.");
+  L.push("");
+  L.push("## Overall");
+  L.push(`- ${S.n} trades, ${n2(S.exp)}R expectancy, ${n2(S.pf)} profit factor, ${pct(S.wr)} win rate`);
+  L.push(`- Average win ${n2(S.aw)}R, average loss ${n2(S.al)}R, payoff ${n2(S.payoff)}`);
+  L.push(`- Worst drawdown ${n2(S.dd)}R, longest losing streak ${S.maxLS}`);
+  const tbl=(g,name)=>{
+    const rows=Object.entries(g).map(([k,v])=>[k,stats(v)]).filter(x=>x[0]&&x[1].n>=M.slice)
+      .sort((a,b)=>b[1].exp-a[1].exp);
+    if(!rows.length)return;
+    L.push("");L.push("## By "+name);
+    rows.forEach(([k,st])=>L.push(`- ${k}: ${st.n} trades, ${n2(st.exp)}R each, ${n2(st.totR)}R total, ${pct(st.wr)} win`));
+  };
+  tbl(group(tr,t=>t.session),"session window");
+  tbl(group(tr,t=>t.strat),"strategy");
+  tbl(group(tr,t=>t.emo),"mental state");
+  tbl(group(tr,t=>t.tradeNo),"trade number of the day");
+  tbl(group(tr,t=>t.day),"weekday");
+  tbl(group(tr,t=>t.adh),"rule adherence");
+  if(D.leaks.length){
+    L.push("");L.push("## What my journal already flags");
+    D.leaks.forEach(l=>L.push(`- ${l.title}: ${l.n} trades, ${n2(l.costR)}R`));
+  }
+  L.push("");
+  L.push("Nothing here identifies me, my broker or my account. Please answer with specific, testable changes rather than general advice.");
+  return L.join("\n");
+}
+function copyBrief(){
+  const t=briefText();
+  const done=()=>toast("Copied — paste it into any AI");
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(done,fb); else fb();
+  function fb(){const a=document.createElement("textarea");a.value=t;document.body.appendChild(a);
+    a.select();try{document.execCommand("copy");done()}catch(e){toast("Could not copy",1)}
+    document.body.removeChild(a)}
 }
 
 /* ============================================================

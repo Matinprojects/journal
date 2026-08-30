@@ -343,6 +343,12 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .facts div:hover{border-color:var(--line)}
 .facts .l{font-size:9.5px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase}
 .facts .v{font-size:15px;font-weight:700;margin-top:3px;font-family:"JetBrains Mono",monospace}
+.factgrp{margin-bottom:11px}
+.factgrp .gl{font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 6px 3px}
+.readback{margin:14px 0 4px;padding:13px 15px;border-radius:var(--r);font-size:12.5px;line-height:1.6;
+  background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.16);color:var(--txt2)}
+.readback .mono{color:var(--txt)}
 .step{transition:opacity .35s var(--ease),filter .35s}
 .step.idle{opacity:.32;filter:saturate(.35)}
 .kbd{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;background:rgba(255,255,255,.07);
@@ -1050,6 +1056,7 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
       <div><label>Stop loss</label><input type="number" step="any" id="f_sl"></div>
       <div><label>Take profit</label><input type="number" step="any" id="f_tp"></div>
       <div><label>Exit</label><input type="number" step="any" id="f_exit"></div>
+      <div><label>Close time <span class="mini" style="text-transform:none;letter-spacing:0">optional</span></label><input type="time" id="f_ctime"></div>
       <div><label>Lot size</label><input type="number" step="0.01" id="f_lot"></div>
       <div><label>Duration (min)</label><input type="number" id="f_dur"></div>
       <div><label>MFE (R)</label><input type="number" step="0.1" id="f_mfe"></div>
@@ -1722,7 +1729,7 @@ try{const s=localStorage.getItem("tj_v1");if(s)DB=Object.assign(DB,JSON.parse(s)
   DB.trades.forEach(t=>{
     t.r=+t.r||0; t.pnl=+t.pnl||0; t.risk=+t.risk||0;
     t.time=typeof t.time==="string"?t.time:"";
-    ["strat","emo","adh","grade","symbol","dir","exitreason","broke","session","day","review"]
+    ["strat","emo","adh","grade","symbol","dir","exitreason","broke","session","day","review","ctime","cdate","ticket"]
       .forEach(k=>{if(typeof t[k]!=="string")t[k]=""});
     if(!t.cf||typeof t.cf!=="object")t.cf={};
     if(t.id===undefined||t.id===null)t.id=Date.now()+Math.random();
@@ -1865,6 +1872,69 @@ function stats(tr){
           aw,al,payoff:al?Math.abs(aw/al):0,dd,maxLS};
 }
 function group(tr,key){const m={};tr.forEach(t=>{const k=key(t);if(k===undefined||k===""||k===null)return;(m[k]=m[k]||[]).push(t)});return m}
+/* prices are shown at the instrument's own precision — gold to 2 places,
+   a JPY pair to 3, everything else to 5, so nothing is rounded away */
+function px(v,sym){
+  v=+v; if(!isFinite(v)||v===0)return "";
+  sym=String(sym||"").toUpperCase();
+  const d = /XAU|GOLD|XAG|SILVER|US30|NAS|SPX|DE40|BTC|ETH/.test(sym) ? 2
+          : /JPY/.test(sym) ? 3 : 5;
+  return v.toFixed(d);
+}
+/* the trade as it was designed: stop, target, and the reward he was playing for.
+   Then where the exit actually landed between them — which is the whole question
+   when you put the position back on a chart a week later. */
+function planOf(t){
+  const e=+t.entry, sl=+t.sl, tp=+t.tp, x=+t.exitp;
+  if(!(e>0))return null;
+  const sold=/sell|short/i.test(t.dir||"");
+  const riskD = sl>0 ? Math.abs(e-sl) : 0;
+  const rewD  = tp>0 ? Math.abs(tp-e) : 0;
+  const rr    = riskD>0&&rewD>0 ? rewD/riskD : 0;
+  let landed=null, frac=null;
+  if(x>0&&riskD>0){
+    const gained = sold ? e-x : x-e;          // signed, in price, in his favour
+    frac = rewD>0 ? gained/rewD : gained/riskD;
+    const nearStop   = sl>0 && Math.abs(x-sl) <= riskD*0.08;
+    const nearTarget = tp>0 && Math.abs(x-tp) <= rewD *0.08;
+    landed = nearTarget ? "target" : nearStop ? "stop" : "manual";
+  }
+  return {e,sl,tp,x,riskD,rewD,rr,landed,frac,sold};
+}
+function planLine(t){
+  const p=planOf(t); if(!p)return "";
+  const bits=[];
+  if(p.rr>0)bits.push(`You were playing for <b class="mono">1 : ${p.rr.toFixed(1)}</b>`);
+  if(p.landed==="stop")bits.push("and it closed at your stop");
+  else if(p.landed==="target")bits.push("and it closed at your target");
+  else if(p.landed==="manual"&&p.frac!==null){
+    const pcv=Math.round(p.frac*100);
+    bits.push(pcv>=0
+      ? `and you closed it by hand, <b>${pcv}%</b> of the way ${p.rewD>0?"to your target":"of one R"}`
+      : `and you closed it by hand, <b>${Math.abs(pcv)}%</b> of the way toward your stop`);
+  }
+  if(!bits.length)return "";
+  let s=bits.join(" ")+".";
+  if(p.landed==="manual"&&p.rr>=2&&p.frac!==null&&p.frac>0&&p.frac<0.5)
+    s+=` The plan was worth ${n2(p.rr)}R and you took ${n2(p.rr*p.frac)}R of it — worth knowing whether the chart justified leaving that behind.`;
+  if(!p.tp&&p.sl)s+=" No target was recorded on this one, so there is nothing to measure the exit against.";
+  return s;
+}
+/* how far price actually travelled, in the units the trader speaks in */
+function moveOf(t){
+  const a=+t.entry, b=+t.exitp;
+  if(!(a>0&&b>0))return null;
+  const sym=String(t.symbol||"").toUpperCase();
+  const raw=Math.abs(b-a);
+  const unit = /XAU|GOLD/.test(sym) ? {n:raw*10,   w:"pips"}      // 0.1 = 1 pip on gold
+             : /JPY/.test(sym)      ? {n:raw*100,  w:"pips"}
+             : /XAG|SILVER/.test(sym)?{n:raw*100,  w:"pips"}
+             : /US30|NAS|SPX|DE40|BTC|ETH/.test(sym) ? {n:raw, w:"points"}
+             : {n:raw*10000, w:"pips"};
+  const sold=/sell|short/i.test(t.dir||"");
+  const favourable = sold ? b<a : b>a;
+  return {n:unit.n, w:unit.w, favourable, a, b};
+}
 function calcRisk(sym,entry,sl,lot){
   entry=+entry;sl=+sl;lot=+lot;
   if(!(entry>0&&sl>0&&lot>0))return 0;
@@ -1929,7 +1999,7 @@ function resetForm(){
   const now=new Date();
   document.getElementById("f_date").value=ymd(now);
   document.getElementById("f_time").value=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
-  ["f_risk","f_pnl","f_entry","f_sl","f_tp","f_exit","f_lot","f_dur","f_mfe","f_mae","f_notes"].forEach(i=>document.getElementById(i).value="");
+  ["f_risk","f_pnl","f_entry","f_sl","f_tp","f_exit","f_ctime","f_lot","f_dur","f_mfe","f_mae","f_notes"].forEach(i=>document.getElementById(i).value="");
   document.getElementById("f_r").value="—";
   document.querySelectorAll("#c_dir .chip,#c_strat .chip,#c_grade .chip,#c_emo .chip,#c_adh .chip,#c_broke .chip,#c_exit .chip").forEach(c=>c.className="chip");
   ["dir","strat","grade","emo","adh","broke","exit"].forEach(k=>delete sel[k]);
@@ -1961,6 +2031,7 @@ function addTrade(){
   DB.trades.push({id:Date.now(),ticket:"",date:d,time:t,session:sess(t),day:dow(d),
     symbol:symv,dir:sel.dir||"",strat:sel.strat,grade:sel.grade||"",
     entry:en,sl:slv,tp:document.getElementById("f_tp").value,exitp:document.getElementById("f_exit").value,
+    ctime:document.getElementById("f_ctime").value||"",
     lot,risk:r,pnl:P,r:P/r,result:P>0?"Win":P<0?"Loss":"BE",
     dur:document.getElementById("f_dur").value,exitreason:sel.exit||"",
     emo:sel.emo,adh:sel.adh,broke:sel.broke||"",tradeNo:"1",
@@ -2270,6 +2341,8 @@ function rowToTrade(r,map,opt){
   if(!(rk>0))return {skip:"norisk"};
   let dur=num("dur");
   const dClose=parseDT(g("dtClose"),opt.dayFirst);
+  /* the close time is what lets him find the exit on a chart later, so keep it */
+  const ctime=dClose&&dClose.time?dClose.time:"", cdate=dClose&&dClose.date?dClose.date:"";
   if(!(dur>0)&&dClose&&dClose.time){
     const a=new Date(`${date}T${time}:00`), b=new Date(`${dClose.date}T${dClose.time}:00`);
     const dd=Math.round((b-a)/60000); if(dd>=0&&dd<100000)dur=dd;
@@ -2281,6 +2354,7 @@ function rowToTrade(r,map,opt){
     strat:pick("strat",names("strategies")),grade:pick("grade",names("grades")),
     entry:entry||"",sl:sl||"",tp:num("tp")||"",exitp:num("exitp")||"",
     lot:lot||"",risk:rk,pnl:pnlv,r:pnlv/rk,result:pnlv>0?"Win":pnlv<0?"Loss":"BE",
+    ctime,cdate,
     dur:(dur===""||dur===undefined||isNaN(dur))?"":dur,exitreason:pick("exitreason",names("exits")),
     emo:pick("emo",names("states")),adh:pick("adh",names("adherence")),broke:pick("broke",names("breaks")),
     tradeNo:"1",mfe:num("mfe")||"",mae:num("mae")||"",news:g("news")==="Yes"?"Yes":"No",notes:g("comment")};
@@ -2586,6 +2660,56 @@ function steps(){
     base.push({k:"cf:"+f.id,label:f.name,list:f.opts.map(o=>o.name),sty:null,optional:true}));
   return base;
 }
+/* one clipboard helper, with a fallback for the browsers that refuse the modern API */
+function copy(text,okMsg){
+  const done=()=>toast(okMsg||"Copied");
+  const fail=()=>{
+    try{
+      const ta=document.createElement("textarea");
+      ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+      document.body.appendChild(ta); ta.select();
+      const won=document.execCommand("copy"); ta.remove();
+      won?done():toast("Copy failed — select the text and copy it by hand",1);
+    }catch(e){toast("Copy failed — select the text and copy it by hand",1)}
+  };
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(text).then(done,fail);
+  else fail();
+}
+/* "Wed 26 Aug 2026" — a date you can actually find on a chart, not "08-26" */
+function longDay(d){
+  if(!d)return "—";
+  const x=new Date(d+"T00:00:00");
+  if(isNaN(x))return esc(d);
+  return `${DOWS[x.getDay()]} ${x.getDate()} ${MONTHS[x.getMonth()].slice(0,3)} ${x.getFullYear()}`;
+}
+/* if the platform gave a duration but no close time, work the close time back out */
+function closeGuess(t){
+  if(t.dur===""||t.dur===null||t.dur===undefined)return "";
+  const d=+t.dur; if(!isFinite(d)||d<0||!/^\d{1,2}:\d{2}/.test(t.time||""))return "";
+  const [h,m]=t.time.split(":").map(Number);
+  const tot=h*60+m+d;
+  const s=String(Math.floor(tot/60)%24).padStart(2,"0")+":"+String(tot%60).padStart(2,"0");
+  return s+(tot>=1440?" +1d":"");
+}
+/* one line to sit beside the chart while he marks the position up */
+function copyChartLine(id){
+  const t=DB.trades.find(x=>String(x.id)===String(id)); if(!t)return;
+  const P=[];
+  P.push(`${t.symbol} ${t.dir||""}`.trim());
+  P.push(longDay(t.date)+"  "+(t.time||"")+(t.ctime||closeGuess(t)?" → "+(t.ctime||closeGuess(t)):""));
+  const pr=[];
+  if(+t.entry>0)pr.push("entry "+px(t.entry,t.symbol));
+  if(+t.sl>0)   pr.push("stop "+px(t.sl,t.symbol));
+  if(+t.tp>0)   pr.push("target "+px(t.tp,t.symbol));
+  if(+t.exitp>0)pr.push("exit "+px(t.exitp,t.symbol));
+  if(pr.length)P.push(pr.join("  ·  "));
+  const m=moveOf(t);
+  if(m)P.push(`${m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w} ${m.favourable?"in favour":"against"}`);
+  P.push(`${n2(t.r)}R  ($${n2(t.pnl)})${t.session?"  ·  "+t.session:""}`);
+  if(t.ticket)P.push("ticket "+t.ticket);
+  copy(P.join("\n"),"Copied — paste it beside your chart");
+}
 function renderQueue(){
   const q=untagged(), box=document.getElementById("tagQueue"), ST=steps();
   document.getElementById("navBadge").innerHTML=q.length?`<span class="count">${q.length}</span>`:"";
@@ -2617,16 +2741,48 @@ function renderQueue(){
     </div>
     <div class="prog" style="margin-bottom:18px"><i style="width:${done/DB.trades.length*100}%"></i></div>
     <div class="tagwrap">
-      <div class="facts">
-        <div><div class="l">Date</div><div class="v">${t.date.slice(5)}</div></div>
-        <div><div class="l">Time</div><div class="v">${t.time}</div></div>
-        <div><div class="l">Symbol</div><div class="v" style="font-size:13px">${esc(t.symbol)}</div></div>
-        <div><div class="l">Side</div><div class="v" style="font-size:13px">${esc(t.dir)||"—"}</div></div>
-        <div><div class="l">Result</div><div class="v ${cls(t.pnl)}">${n2(t.r)}R</div></div>
-        <div><div class="l">P / L</div><div class="v ${cls(t.pnl)}" style="font-size:13px">$${n2(t.pnl)}</div></div>
-        <div><div class="l">Duration</div><div class="v" style="font-size:13px">${t.dur?t.dur+"m":"—"}</div></div>
-        <div><div class="l">Trade #</div><div class="v">${t.tradeNo}</div></div>
+      <div class="factgrp"><div class="gl">When</div>
+        <div class="facts">
+          <div><div class="l">Trading day</div><div class="v" style="font-size:12.5px">${longDay(t.date)}</div></div>
+          <div><div class="l">Opened</div><div class="v">${esc(t.time)||"—"}</div></div>
+          <div><div class="l">Closed</div><div class="v">${esc(t.ctime)||closeGuess(t)||"—"}</div></div>
+          <div><div class="l">Held</div><div class="v" style="font-size:13px">${t.dur!==""&&t.dur!==undefined?t.dur+"m":"—"}</div></div>
+          <div><div class="l">Window</div><div class="v" style="font-size:11.5px">${esc(t.session)||"outside"}</div></div>
+        </div>
       </div>
+      <div class="factgrp"><div class="gl">What</div>
+        <div class="facts">
+          <div><div class="l">Symbol</div><div class="v" style="font-size:13px">${esc(t.symbol)}</div></div>
+          <div><div class="l">Side</div><div class="v ${/sell|short/i.test(t.dir||"")?"neg":"pos"}" style="font-size:13px">${esc(t.dir)||"—"}</div></div>
+          <div><div class="l">Lot</div><div class="v" style="font-size:13px">${t.lot||"—"}</div></div>
+          <div><div class="l">Ticket</div><div class="v" style="font-size:11.5px">${esc(t.ticket)||"—"}</div></div>
+          <div><div class="l">Trade #</div><div class="v">${t.tradeNo}</div></div>
+        </div>
+      </div>
+      <div class="factgrp"><div class="gl">Where on the chart</div>
+        <div class="facts">
+          <div><div class="l">Entry</div><div class="v" style="font-size:13px">${px(t.entry,t.symbol)||"—"}</div></div>
+          <div><div class="l">Stop</div><div class="v neg" style="font-size:13px">${px(t.sl,t.symbol)||"—"}</div></div>
+          <div><div class="l">Target</div><div class="v pos" style="font-size:13px">${px(t.tp,t.symbol)||"—"}</div></div>
+          <div><div class="l">Exit</div><div class="v ${cls(t.pnl)}" style="font-size:13px">${px(t.exitp,t.symbol)||"—"}</div></div>
+        </div>
+      </div>
+      <div class="factgrp"><div class="gl">Outcome</div>
+        <div class="facts">
+          <div><div class="l">Result</div><div class="v ${cls(t.pnl)}">${n2(t.r)}R</div></div>
+          <div><div class="l">P / L</div><div class="v ${cls(t.pnl)}" style="font-size:13px">$${n2(t.pnl)}</div></div>
+          <div><div class="l">Risked</div><div class="v" style="font-size:13px">$${n2(t.risk)}</div></div>
+          <div><div class="l">Exit reason</div><div class="v" style="font-size:11.5px">${esc(t.exitreason)||"—"}</div></div>
+        </div>
+      </div>
+      ${(()=>{const m=moveOf(t), pl=planLine(t);
+        if(!m&&!pl)return "";
+        return `<div class="readback">
+          ${m?`<div>Price went from <b class="mono">${px(m.a,t.symbol)}</b> to <b class="mono">${px(m.b,t.symbol)}</b> — <b class="mono ${m.favourable?"pos":"neg"}">${
+            m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w}</b> ${m.favourable?"in your favour":"against you"}.</div>`:""}
+          ${pl?`<div style="margin-top:5px">${pl}</div>`:""}
+          <button class="btn sec sm" style="margin-top:10px" onclick="copyChartLine('${jsq(String(t.id))}')">Copy for the chart</button>
+        </div>`})()}
       ${t.notes?`<div class="mini" style="margin:10px 0 0">Platform comment: <span class="mono au">${esc(t.notes)}</span></div>`:""}
       ${ST.map((s,si)=>`
         <div class="step ${si===TQ.step?"":"idle"}">
@@ -3578,6 +3734,20 @@ function renderBoxDay(bx,k){
               ${t.grade?`<span class="tag ${gradePol(t.grade)==="good"?"g":gradePol(t.grade)==="bad"?"r":"a"}" style="margin-left:6px">${esc(t.grade)}</span>`:""}</div>
             <div class="b">${esc(t.session)||"outside every window"}${t.dir?" · "+esc(t.dir):""}${
               t.exitreason?" · "+esc(t.exitreason):""}${t.emo?" · "+esc(t.emo):""}</div>
+            ${(()=>{const m=moveOf(t);
+              if(m)return `<div class="b mono">${px(m.a,t.symbol)} &rarr; ${px(m.b,t.symbol)}<span style="opacity:.6"> · ${
+                m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w}</span>${
+                t.sl?`<span style="opacity:.6"> · stop ${px(t.sl,t.symbol)}</span>`:""}${
+                t.tp?`<span style="opacity:.6"> · target ${px(t.tp,t.symbol)}</span>`:""}${
+                (t.ctime||closeGuess(t))?`<span style="opacity:.6"> · closed ${esc(t.ctime||closeGuess(t))}</span>`:""}</div>`;
+              return t.entry?`<div class="b mono">entry ${px(t.entry,t.symbol)}</div>`:""})()}
+            ${(()=>{const p=planOf(t);
+              if(!p||!p.landed)return "";
+              const w=p.landed==="target"?["g","closed at target"]
+                    :p.landed==="stop"  ?["r","closed at stop"]
+                    :["a",`closed by hand${p.rewD>0&&p.frac!==null?` · ${Math.round(p.frac*100)}% of target`:""}`];
+              return `<div class="b"><span class="tag ${w[0]}">${w[1]}</span>${
+                p.rr>0?`<span style="opacity:.6;margin-left:7px">planned 1 : ${p.rr.toFixed(1)}</span>`:""}</div>`})()}
             ${scr?`<div class="b" style="color:var(--gold-lt)">scratched at breakeven — not counted as a stop</div>`:""}
             ${v?`<div class="b" style="color:var(--loss)">${v.map(esc).join(" · ")}</div>`:""}
             ${t.review?`<div class="b" style="color:var(--txt2);white-space:normal">${esc(t.review)}</div>`:""}
@@ -4961,10 +5131,10 @@ function renderBackup(){
 /* ============================================================
    EXPORT
    ============================================================ */
-const HEAD=["ID","Date","Time","Session","Day","Symbol","Direction","Strategy","Grade","Entry","SL","TP","Exit","Lot","Risk","PnL","R","Result","Duration","ExitReason","Emotion","Adherence","RuleBroken","TradeNoDay","MFE_R","MAE_R","News","Notes","Review","HasChart","Ticket"];
+const HEAD=["ID","Date","Time","CloseTime","Session","Day","Symbol","Direction","Strategy","Grade","Entry","SL","TP","Exit","Lot","Risk","PnL","R","Result","Duration","ExitReason","Emotion","Adherence","RuleBroken","TradeNoDay","MFE_R","MAE_R","News","Notes","Review","HasChart","Ticket"];
 function exportCSV(){
   const q=v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`;
-  const rows=DB.trades.map((t,i)=>[i+1,t.date,t.time,t.session,t.day,t.symbol,t.dir,t.strat,t.grade,
+  const rows=DB.trades.map((t,i)=>[i+1,t.date,t.time,(t.ctime||closeGuess(t)||""),t.session,t.day,t.symbol,t.dir,t.strat,t.grade,
     t.entry,t.sl,t.tp,t.exitp,t.lot,t.risk,t.pnl,n2(t.r),t.result,t.dur,t.exitreason,t.emo,t.adh,
     t.broke,t.tradeNo,t.mfe,t.mae,t.news,t.notes,t.review,(t.shot?"yes":""),t.ticket].map(q).join(","));
   const csv="﻿"+HEAD.join(",")+"\n"+rows.join("\n");

@@ -729,6 +729,32 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .rpplan{margin:0;padding-left:20px;color:var(--txt2);font-size:13px;line-height:1.85}
 .rpplan li{margin-bottom:9px}
 .rpplan b{color:var(--txt)}
+/* ---------- confidence interval strip ---------- */
+.cistrip{margin:6px 0 18px}
+.cistrip .track{position:relative;height:44px;border-radius:11px;background:rgba(255,255,255,.03);
+  border:1px solid var(--line2);overflow:hidden}
+.cistrip .band{position:absolute;top:0;bottom:0;background:linear-gradient(90deg,
+  rgba(212,175,55,.14),rgba(212,175,55,.30),rgba(212,175,55,.14));border-left:1px solid var(--gold-dim);
+  border-right:1px solid var(--gold-dim);animation:ciin .7s var(--ease-out)}
+@keyframes ciin{from{opacity:0;transform:scaleX(.4)}to{opacity:1;transform:none}}
+.cistrip .zero{position:absolute;top:0;bottom:0;width:1.5px;background:rgba(255,255,255,.4)}
+.cistrip .zero:after{content:"0";position:absolute;top:2px;left:4px;font-size:9px;color:var(--dim);
+  font-family:"JetBrains Mono",monospace}
+.cistrip .pt{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;
+  background:var(--grad-gold);box-shadow:0 0 0 3px rgba(212,175,55,.22),0 2px 8px rgba(0,0,0,.6)}
+.cistrip .ends{display:flex;justify-content:space-between;margin-top:7px;font-size:11px;
+  color:var(--dim);font-family:"JetBrains Mono",monospace}
+.cistrip .ends .mid{color:var(--gold-lt)}
+.civerdict{padding:15px 17px;border-radius:var(--r);border:1px solid}
+.civerdict b{font-size:14.5px;font-weight:700}
+.civerdict p{font-size:12.5px;color:var(--txt2);line-height:1.75;margin-top:5px}
+.civerdict.proven{background:linear-gradient(150deg,rgba(63,207,142,.10),transparent);border-color:rgba(63,207,142,.35)}
+.civerdict.proven b{color:#5FE0A6}
+.civerdict.unproven{background:linear-gradient(150deg,rgba(232,163,61,.10),transparent);border-color:rgba(232,163,61,.35)}
+.civerdict.unproven b{color:#F2BB63}
+.civerdict.broken{background:linear-gradient(150deg,rgba(240,84,79,.10),transparent);border-color:rgba(240,84,79,.35)}
+.civerdict.broken b{color:#F5716C}
+.vd.thin{background:rgba(255,255,255,.05);color:var(--dim)}
 /* ============================================================
    PHONE
    Nine tabs in a wrapping row is a desktop pattern. On a phone the
@@ -1254,6 +1280,24 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
     <button class="btn sec" style="margin-top:14px" onclick="copyPlan()">Copy plan</button>
   </div>
 
+  <div class="card rv" style="--d:80ms">
+    <h2><span class="dot"></span>How Sure Can You Be?<span class="tail" id="ciTail"></span></h2>
+    <p class="hint">Every other number in this app is a single figure. This one puts bounds around it. A fund never reports a return without saying how much of it could be luck — and the answer usually decides whether you should be sizing up or sitting still.</p>
+    <div id="ciBox"></div>
+  </div>
+
+  <div class="card rv" style="--d:100ms">
+    <h2><span class="dot"></span>Risk Profile<span class="tail">the numbers an allocator would ask for</span></h2>
+    <p class="hint">Profit alone never tells you whether an account is worth funding. These are the measures used to decide that — how smooth the return was, how deep and how long the holes were, and how much of your capital the edge can actually carry.</p>
+    <div id="riskBox"></div>
+  </div>
+
+  <div class="card rv" style="--d:110ms">
+    <h2><span class="dot"></span>Is the Edge Still Working?<span class="tail" id="dkTail"></span></h2>
+    <p class="hint">An edge is not a permanent possession. Markets change, and so do you — quietly, without announcing it. This compares the trader you are now against the trader you were, so a decay shows up while it is still small enough to do something about.</p>
+    <div id="decayBox"></div>
+  </div>
+
   <div class="card rv" style="--d:120ms">
     <h2><span class="dot"></span>Session Windows<span class="tail" id="wlTail"></span></h2>
     <p class="hint">Your time map, marked against your own results. Each window carries the weight you gave it — the question this answers is whether the market agrees. A window can only be judged once it has enough trades, so anything still thin is shown as such rather than guessed at.</p>
@@ -1661,7 +1705,33 @@ let STORE_OK=true, STORE_WHY="";
 try{
   localStorage.setItem("tj_probe","1"); localStorage.removeItem("tj_probe");
 }catch(e){ STORE_OK=false; STORE_WHY=(e&&e.name)||"blocked" }
+let LOAD_REPAIRED=0;
 try{const s=localStorage.getItem("tj_v1");if(s)DB=Object.assign(DB,JSON.parse(s));}catch(e){}
+/* Storage can come back wrong: a half-written save, a hand-edited backup, a build
+   from another version. One bad field used to take the whole app down with it and
+   leave no way back in — so every field is checked into the shape the code expects. */
+(function repair(){
+  const arr=k=>{if(!Array.isArray(DB[k])){DB[k]=[];LOAD_REPAIRED++}};
+  const obj=k=>{if(!DB[k]||typeof DB[k]!=="object"||Array.isArray(DB[k])){DB[k]={};LOAD_REPAIRED++}};
+  ["trades","sessions","rules","boxes","money","invests"].forEach(arr);
+  ["checks","map"].forEach(obj);
+  if(typeof DB.cutoff!=="string"){DB.cutoff="";LOAD_REPAIRED++}
+  // drop anything in the trade list that is not a usable trade
+  const before=DB.trades.length;
+  DB.trades=DB.trades.filter(t=>t&&typeof t==="object"&&typeof t.date==="string"&&t.date.length>=8);
+  DB.trades.forEach(t=>{
+    t.r=+t.r||0; t.pnl=+t.pnl||0; t.risk=+t.risk||0;
+    t.time=typeof t.time==="string"?t.time:"";
+    ["strat","emo","adh","grade","symbol","dir","exitreason","broke","session","day","review"]
+      .forEach(k=>{if(typeof t[k]!=="string")t[k]=""});
+    if(!t.cf||typeof t.cf!=="object")t.cf={};
+    if(t.id===undefined||t.id===null)t.id=Date.now()+Math.random();
+  });
+  if(DB.trades.length!==before)LOAD_REPAIRED++;
+  DB.boxes=DB.boxes.filter(b=>b&&typeof b==="object"&&b.id);
+  DB.money=DB.money.filter(m=>m&&typeof m==="object"&&m.id);
+  DB.invests=DB.invests.filter(v=>v&&typeof v==="object"&&v.id);
+})();
 let CFG=migrate(DB.cfg);
 DB.cfg=CFG; DB.map=DB.map||{}; DB.boxes=DB.boxes||[];
 DB.money=DB.money||[]; DB.invests=DB.invests||[];
@@ -4029,6 +4099,16 @@ function render(){
   document.getElementById("filtInfo").textContent=`${tr.length} in view · ${DB.trades.length} total`;
   document.getElementById("tradeCount").textContent=DB.trades.length?`${DB.trades.length} records`:"";
   const sb=document.getElementById("storeWarn");
+  if(sb&&STORE_OK&&LOAD_REPAIRED){
+    sb.innerHTML=`<div class="note warn"><span class="ic">◔</span><div>
+      <b>Some saved data was in the wrong shape and has been repaired.</b>
+      The journal opened normally and nothing readable was lost, but if a trade or a box looks
+      missing, load your most recent backup from <b>Data</b>. This usually means a save was
+      interrupted, or a file from a different version was loaded.
+      <div style="margin-top:10px"><button class="btn sec sm" onclick="dismissRepair()">Understood</button></div>
+    </div></div>`;
+    return;                                  // stays until acknowledged, not just one render
+  }
   if(sb)sb.innerHTML=STORE_OK?"":`<div class="note warn" style="border-color:rgba(240,84,79,.5);background:rgba(240,84,79,.08)">
     <span class="ic">!</span><div><b>This browser is refusing to save anything.</b>
     Everything you enter will disappear the moment you close the tab. It happens when a page is opened
@@ -4078,7 +4158,7 @@ function render(){
   document.getElementById("tables").innerHTML=T.map(([n,k],i)=>tableFor(n,tr,k,i)).join("");
   requestAnimationFrame(()=>document.querySelectorAll("#tables .bar>i").forEach(b=>b.style.width=b.dataset.w+"%"));
   buildForm();renderBoxes();renderBoxForm();insights(tr);renderData();renderChecklist();renderQueue();renderBulk();renderEditors();renderCF();renderBulkList();renderChkEditor();
-  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderReport();
+  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderReport();renderConfidence();renderRisk();renderDecay();
   observe();spy();
 }
 function tableFor(name,tr,key,idx){
@@ -5352,6 +5432,58 @@ function renderDiscipline(tr){
 }
 
 /* ============================================================
+   HOW SURE CAN YOU BE?
+   A fund never quotes a return without an error bar. A journal that
+   says "0.31R" from 40 trades is stating a guess as a fact. These
+   put honest bounds on every claim the app makes.
+   ============================================================ */
+/* Bootstrap: resample the trader's own results a few thousand times and see
+   how far the answer wanders. No distribution assumed — it uses what happened. */
+function bootCI(vals,runs,lo,hi){
+  const n=vals.length; if(n<5)return null;
+  runs=runs||2000; lo=lo===undefined?0.025:lo; hi=hi===undefined?0.975:hi;
+  const means=new Array(runs);
+  for(let b=0;b<runs;b++){
+    let s=0;
+    for(let i=0;i<n;i++)s+=vals[(Math.random()*n)|0];
+    means[b]=s/n;
+  }
+  means.sort((a,b)=>a-b);
+  const q=p=>means[Math.min(runs-1,Math.max(0,Math.floor(p*runs)))];
+  return {lo:q(lo),hi:q(hi),median:q(0.5),
+    pPositive:means.filter(x=>x>0).length/runs};
+}
+/* Is A really better than B, or is this the sample talking? A permutation test:
+   shuffle the labels many times and see how often chance produces a gap this big. */
+function permTest(a,b,runs){
+  if(a.length<5||b.length<5)return null;
+  runs=runs||2000;
+  const all=a.concat(b), na=a.length;
+  const obs=avg(a)-avg(b);
+  let extreme=0;
+  for(let r=0;r<runs;r++){
+    const pool=all.slice();
+    for(let i=pool.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=pool[i];pool[i]=pool[j];pool[j]=t}
+    const d=avg(pool.slice(0,na))-avg(pool.slice(na));
+    if(Math.abs(d)>=Math.abs(obs))extreme++;
+  }
+  return {diff:obs,p:extreme/runs};
+}
+/* how many more trades before the interval is tight enough to act on */
+function tradesNeeded(vals,target){
+  const n=vals.length; if(n<5)return null;
+  const m=avg(vals);
+  const sd=Math.sqrt(avg(vals.map(x=>(x-m)*(x-m))));
+  if(!(sd>0))return 0;
+  // width of a 95% interval is about 3.92·sd/√n
+  const want=target||0.2;
+  const need=Math.ceil(Math.pow(3.92*sd/want,2));
+  return Math.max(0,need-n);
+}
+const pWord=p=>p<0.01?"almost certainly real":p<0.05?"probably real"
+  :p<0.15?"suggestive, not proven":"indistinguishable from luck";
+
+/* ============================================================
    THE TRADING REPORT
    A leak is a group of trades that loses money the rest of your
    trading has to pay for. Each check below finds one, prices it in R,
@@ -5565,6 +5697,232 @@ function renderReport(){
     })()}</ol>
   </div>`;
 }
+function renderConfidence(){
+  const host=document.getElementById("ciBox"); if(!host)return;
+  const tr=filtered(), M=MIN(), R=tr.map(t=>t.r).filter(isFinite);
+  const tail=document.getElementById("ciTail");
+  if(R.length<10){
+    tail.textContent="";
+    host.innerHTML=EMPTY("Ten trades or more are needed before an interval means anything.");
+    return;
+  }
+  const ci=bootCI(R), S=stats(tr), more=tradesNeeded(R,0.2);
+  tail.textContent=`${R.length} trades · 95% interval`;
+  const verdict=ci.lo>0?["proven","Your edge clears zero",
+      "Even the pessimistic end of the range is positive. At this sample size, that is as close to proof as trading gets."]
+    :ci.hi<0?["broken","This is a losing system, not variance",
+      "The optimistic end of the range is still negative. More trades will not rescue it — the entries have to change."]
+    :["unproven","Not yet distinguishable from luck",
+      `The range crosses zero, so a positive average could still be chance. About <b>${more}</b> more trades at this consistency would narrow it enough to decide.`];
+  // where the interval sits, drawn to scale
+  const lo=Math.min(ci.lo,0), hi=Math.max(ci.hi,0), span=(hi-lo)||1;
+  const X=v=>((v-lo)/span*100);
+  host.innerHTML=`<div class="cistrip">
+    <div class="track">
+      <div class="band" style="left:${X(ci.lo).toFixed(1)}%;width:${(X(ci.hi)-X(ci.lo)).toFixed(1)}%"></div>
+      <div class="zero" style="left:${X(0).toFixed(1)}%"></div>
+      <div class="pt" style="left:${X(S.exp).toFixed(1)}%"></div>
+    </div>
+    <div class="ends"><span>${n2(ci.lo)}R</span><span class="mid">${n2(S.exp)}R measured</span><span>${n2(ci.hi)}R</span></div>
+  </div>
+  <div class="civerdict ${verdict[0]}">
+    <b>${verdict[1]}</b>
+    <p>Your true expectancy is somewhere between <b>${n2(ci.lo)}R</b> and <b>${n2(ci.hi)}R</b> per trade, nineteen times out of twenty. ${verdict[2]}</p>
+    <div class="mini" style="margin-top:8px">${pct(ci.pPositive)} of ${(2000).toLocaleString()} resamples of your own trades came out profitable.</div>
+  </div>
+  ${(()=>{
+    // is the best category actually better than the worst, or is it noise?
+    const dims=[["session","session window"],["strat","strategy"],["emo","mental state"]];
+    const rows=[];
+    dims.forEach(([k,label])=>{
+      const g=group(tr,t=>t[k]);
+      const e=Object.entries(g).map(([n,v])=>[n,v.map(t=>t.r)])
+        .filter(x=>x[0]&&x[1].length>=Math.max(8,M.slice));
+      if(e.length<2)return;
+      e.sort((a,b)=>avg(b[1])-avg(a[1]));
+      const best=e[0], worst=e[e.length-1];
+      const t=permTest(best[1],worst[1]);
+      if(!t)return;
+      rows.push(`<tr><td>${label}</td>
+        <td>${esc(best[0])} <span class="thin">vs</span> ${esc(worst[0])}</td>
+        <td class="mono pos">${n2(t.diff)}R</td>
+        <td><span class="vd ${t.p<0.05?"good":t.p<0.15?"warn":"thin"}">${pWord(t.p)}</span></td>
+        <td class="mono">${t.p<0.001?"<0.001":n2(t.p)}</td></tr>`);
+    });
+    return rows.length?`<div class="st" style="margin:22px 0 10px;font-size:10.5px;font-weight:700;
+      letter-spacing:.15em;text-transform:uppercase;color:var(--gold)">Are your best and worst really different?</div>
+      <div class="scroll"><table><thead><tr><th>Compared by</th><th>Best vs worst</th><th>Gap</th><th>Verdict</th><th>p</th></tr></thead>
+      <tbody>${rows.join("")}</tbody></table></div>
+      <div class="mini" style="margin-top:10px">The labels are shuffled two thousand times. <b>p</b> is how often pure chance produced a gap this wide. Below 0.05 the difference is worth acting on; above 0.15 you are reading noise and should keep collecting.</div>`:"";
+  })()}`;
+}
+function renderRisk(){
+  const host=document.getElementById("riskBox"); if(!host)return;
+  const tr=filtered(), R=tr.map(t=>t.r).filter(isFinite), S=stats(tr);
+  if(R.length<10){host.innerHTML=EMPTY("Not enough trades for a risk profile yet.");return}
+  const m=avg(R);
+  const sd=Math.sqrt(avg(R.map(x=>(x-m)*(x-m))));
+  const down=R.filter(x=>x<0);
+  const dsd=down.length?Math.sqrt(avg(down.map(x=>x*x))):0;
+  const sharpe=sd>0?m/sd:0;                  // per trade, not annualised — honest for a journal
+  const sortino=dsd>0?m/dsd:(m>0?99:0);
+  // underwater path, for the ulcer index and time to recover
+  let cum=0,peak=0,dd=[],worst=0,under=0,longest=0,run=0,recovered=0;
+  R.forEach(r=>{cum+=r;peak=Math.max(peak,cum);const d=peak-cum;dd.push(d);
+    worst=Math.max(worst,d);
+    if(d>1e-9){under++;run++;longest=Math.max(longest,run)}else{if(run)recovered++;run=0}});
+  const ulcer=Math.sqrt(avg(dd.map(d=>d*d)));
+  const calmar=worst>0?S.totR/worst:(S.totR>0?99:0);
+  // Kelly, then the fraction a sane person actually uses
+  const p=S.wr, b=S.al!==0?Math.abs(S.aw/S.al):0;
+  const kelly=(b>0&&p>0)?((b*p-(1-p))/b):0;
+  const cap=+CFG.risk.def||0;
+  const streak=(()=>{
+    const q=1-S.wr, rows=[];
+    for(const k of [3,4,5,6,7,8]){
+      if(q<=0||q>=1)break;
+      const once=Math.pow(q,k);
+      rows.push([k, once>0?Math.round(1/once):Infinity]);
+    }
+    return rows;
+  })();
+  const box=(l,v,c,s)=>`<div class="mcard"><div class="l">${l}</div>
+    <div class="v ${c||""}">${v}</div><div class="s">${s}</div></div>`;
+  host.innerHTML=`<div class="mrow">
+    ${box("Sortino","​"+n2(sortino),sortino>=1?"pos":sortino>=0.5?"":"neg",
+      "return per unit of downside — the only volatility that hurts")}
+    ${box("Sharpe (per trade)",n2(sharpe),sharpe>=0.3?"pos":sharpe>=0.1?"":"neg",
+      "return per unit of all volatility")}
+    ${box("Ulcer index",n2(ulcer),ulcer<=1.5?"pos":ulcer<=3?"":"neg",
+      "how deep and how long you sat underwater")}
+    ${box("Calmar",calmar>=99?"∞":n2(calmar),calmar>=2?"pos":calmar>=1?"":"neg",
+      "total return divided by the worst fall")}
+    ${box("Time underwater",pct(under/R.length),under/R.length<=0.5?"pos":"neg",
+      "share of trades spent below a previous peak")}
+  </div>
+  <div class="mrow" style="margin-top:10px">
+    ${box("Longest drawdown",longest+" trades",longest<=15?"pos":"neg","before a new high was made")}
+    ${box("Worst fall",n2(worst)+"R","neg","peak to trough")}
+    ${box("Full Kelly",kelly>0?pct(kelly):"—",kelly>0?"":"neg",
+      "what the maths says is the growth-optimal risk")}
+    ${box("Quarter Kelly",kelly>0?pct(kelly/4):"—","au",
+      "what professionals actually use — a quarter, for survival")}
+    ${box("Your risk now",cap>0?"$"+n2(cap):"—","", cap>0?"set in Customize":"not set")}
+  </div>
+  ${kelly>0?`<div class="note ${kelly/4<0.02?"ok":"warn"}" style="margin-top:16px"><span class="ic">${kelly/4<0.02?"✓":"◐"}</span><div>
+    Your win rate and payoff imply a growth-optimal risk of <b>${pct(kelly)}</b> per trade. Nobody trades that —
+    full Kelly assumes your edge is measured perfectly and produces drawdowns most people cannot sit through.
+    <b>A quarter of it, ${pct(kelly/4)}, is the professional convention.</b>
+    ${kelly/4>=0.02?" Even that is above the 2% most risk desks cap at, which tells you the edge is estimated from a small sample rather than that you should size up.":""}
+  </div></div>`:""}
+  ${streak.length?`<div class="st" style="margin:22px 0 10px;font-size:10.5px;font-weight:700;
+    letter-spacing:.15em;text-transform:uppercase;color:var(--gold)">Losing runs you should expect</div>
+    <div class="scroll"><table><thead><tr><th>A run of</th><th>Happens roughly once every</th></tr></thead><tbody>
+    ${streak.map(([k,n])=>`<tr><td class="mono">${k} losses in a row</td>
+      <td class="mono">${isFinite(n)?n.toLocaleString()+" trades":"—"}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="mini" style="margin-top:10px">At your ${pct(S.wr)} win rate these are normal, not a signal. Your longest run so far is <b>${S.maxLS}</b>. Knowing the number in advance is what stops a routine streak from turning into a change of system.</div>`:""}`;
+}
+
+/* ---- edge decay: are you still the trader who made that record? ---- */
+function rollExp(vals,w){
+  const out=[]; if(vals.length<w)return out;
+  let s=0; for(let i=0;i<w;i++)s+=vals[i];
+  out.push(s/w);
+  for(let i=w;i<vals.length;i++){s+=vals[i]-vals[i-w];out.push(s/w)}
+  return out;
+}
+function renderDecay(){
+  const box=document.getElementById("decayBox"); if(!box)return;
+  const tail=document.getElementById("dkTail"); if(tail)tail.textContent="";
+  const tr=filtered().slice().sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  const v=tr.map(t=>+t.r||0);
+  if(v.length<30){
+    box.innerHTML=`<div class="mini">Thirty trades or more before this can say anything. You have <b>${v.length}</b>. Until then any change you see is the sample moving, not you.</div>`;
+    return;
+  }
+  const half=Math.floor(v.length/2), older=v.slice(0,half), recent=v.slice(half);
+  const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const eOld=mean(older), eNew=mean(recent), drop=eNew-eOld;
+  const t=permTest(older,recent,3000);
+  const p=t?t.p:1;
+  const real=p<0.15;
+  const dir=drop<0?"down":"up";
+
+  /* rolling window, sized so there are always enough points to see a shape */
+  const w=Math.max(20,Math.min(50,Math.round(v.length/6)));
+  const roll=rollExp(v,w);
+  const lo=Math.min(0,...roll), hi=Math.max(0,...roll), span=(hi-lo)||1;
+  const W=100, H=100;
+  const pt=i=>[(roll.length<2?0:i/(roll.length-1))*W, H-((roll[i]-lo)/span)*H];
+  const path=roll.map((_,i)=>{const[x,y]=pt(i);return (i?"L":"M")+x.toFixed(2)+" "+y.toFixed(2)}).join(" ");
+  const zeroY=H-((0-lo)/span)*H;
+  const last=roll[roll.length-1], first=roll[0];
+
+  /* how much of the whole record does the recent stretch account for? */
+  const total=v.reduce((a,b)=>a+b,0), recSum=recent.reduce((a,b)=>a+b,0);
+  const share=total!==0?recSum/total:0;
+
+  let verdict,cls,say;
+  if(real&&drop<0){
+    verdict="Weakening"; cls="bad";
+    say=`Your recent half earns <b>${n2(eNew)}R</b> a trade against <b>${n2(eOld)}R</b> before it — a fall of ${n2(Math.abs(drop))}R, and the gap is ${pWord(p)}. Treat the older half as history rather than as a promise. Before you size up, find what changed: check the window and strategy tables above filtered to the recent period and see which one gave way.`;
+  }else if(real&&drop>0){
+    verdict="Improving"; cls="good";
+    say=`Your recent half earns <b>${n2(eNew)}R</b> a trade against <b>${n2(eOld)}R</b> before it, and the improvement is ${pWord(p)}. Something you changed is working. Worth naming it — read back your notes across the turn so it survives the next bad week, when you will be tempted to change again.`;
+  }else{
+    verdict="Holding"; cls=eNew>0?"good":"thin";
+    say=`Recent <b>${n2(eNew)}R</b> against earlier <b>${n2(eOld)}R</b>. The difference is ${pWord(p)}, which is the answer you want — a stable edge is worth more than a flattering one. Nothing here argues for changing the system.`;
+  }
+  if(tail)tail.textContent=verdict.toLowerCase();
+
+  box.innerHTML=`
+  <div class="civerdict"><b class="${cls==="bad"?"":""}">${verdict}</b>
+    <div style="margin-top:7px">${say}</div></div>
+
+  <div style="margin:20px 0 8px;display:flex;justify-content:space-between;align-items:baseline">
+    <div class="st" style="font-size:10.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold)">
+      Expectancy over the last ${w} trades, rolling</div>
+    <div class="mini">${roll.length} readings</div>
+  </div>
+  <div style="position:relative;height:120px;border-radius:12px;background:rgba(255,255,255,.02);
+       border:1px solid rgba(255,255,255,.06);overflow:hidden">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:100%;display:block">
+      <line x1="0" y1="${zeroY.toFixed(2)}" x2="${W}" y2="${zeroY.toFixed(2)}"
+            stroke="rgba(255,255,255,.28)" stroke-width="0.4" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
+      <path d="${path}" fill="none" stroke="${last>=0?"var(--gold)":"#F5716C"}" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    </svg>
+  </div>
+  <div class="mini" style="display:flex;justify-content:space-between;margin-top:7px">
+    <span>oldest reading <b class="mono">${n2(first)}R</b></span>
+    <span>dashed line is break-even</span>
+    <span>latest <b class="mono">${n2(last)}R</b></span>
+  </div>
+
+  <div class="scroll" style="margin-top:20px"><table>
+    <thead><tr><th>&nbsp;</th><th>Earlier half</th><th>Recent half</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td>Trades</td><td class="mono">${older.length}</td><td class="mono">${recent.length}</td><td class="mono">—</td></tr>
+      <tr><td>Expectancy</td><td class="mono">${n2(eOld)}R</td><td class="mono">${n2(eNew)}R</td>
+          <td class="mono" style="color:${drop>=0?"#5FE0A6":"#F5716C"}">${drop>=0?"+":""}${n2(drop)}R</td></tr>
+      <tr><td>Win rate</td>
+          <td class="mono">${pct(older.filter(x=>x>0).length/older.length)}</td>
+          <td class="mono">${pct(recent.filter(x=>x>0).length/recent.length)}</td>
+          <td class="mono">${(()=>{const d=recent.filter(x=>x>0).length/recent.length-older.filter(x=>x>0).length/older.length;
+            return (d>=0?"+":"")+pct(d)})()}</td></tr>
+      <tr><td>Is the difference real?</td><td colspan="2" class="mono">p = ${p.toFixed(3)}</td>
+          <td><span class="vd ${real?(drop<0?"bad":"good"):"thin"}">${pWord(p)}</span></td></tr>
+    </tbody></table></div>
+
+  <div class="mini" style="margin-top:14px">Your recent half accounts for <b>${pct(share)}</b> of everything you have made. ${
+    share>0.85&&total>0?"Almost the whole record was earned recently — which means the record is younger and thinner than its trade count suggests."
+    :share<0.15&&total>0?"Almost nothing has been earned recently. The headline figures are being carried by older trades."
+    :"That is a reasonable spread — no single stretch is carrying the whole result."}</div>
+
+  <div class="mini" style="margin-top:10px">Why halves and not a trend line: a trend line will always find a slope, even in noise. Splitting the record in two and asking whether the halves could have come from the same trader is the harder question, and the only one worth acting on.</div>`;
+}
+
 /* a compact, anonymous brief the trader can paste into any AI */
 function briefText(){
   const tr=filtered(), D=diagnose(tr), S=D.S, M=MIN();
@@ -6342,7 +6700,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.1";
+const APP_VERSION="1.0.0-beta.2";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 
@@ -6361,6 +6719,7 @@ window.addEventListener("appinstalled",()=>{
 const standalone=()=>window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches
   ||navigator.standalone===true;
 function dismissInstall(){DB.noInstall=true;save();renderInstall()}
+function dismissRepair(){LOAD_REPAIRED=0;render()}
 function renderInstall(){
   const host=document.getElementById("installBar"); if(!host)return;
   if(!SERVED||standalone()||DB.noInstall){host.innerHTML="";return}

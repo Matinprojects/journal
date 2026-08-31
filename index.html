@@ -1488,9 +1488,9 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
       <div><label>Your chart is ahead of your platform by (minutes)</label>
         <input type="number" step="15" id="n_choff" onchange="setChartOffset(this.value)">
         <div class="mini" style="margin-top:6px">Negative if your chart is behind. 30 means your chart reads 16:56 when your platform says 16:26.</div></div>
-      <div><label>Not sure? Work it out from a trade</label>
-        <button class="btn sec" style="width:100%" onclick="openCalib()">Calibrate from a trade</button>
-        <div class="mini" style="margin-top:6px">Pick a trade, find it on your chart, and type the time you see. The offset works itself out.</div></div>
+      <div><label>Don't know the number?</label>
+        <button class="btn sec" style="width:100%" onclick="openCalib()">Compare the two clocks</button>
+        <div class="mini" style="margin-top:6px">Read your platform's clock and your chart's clock as they stand right now. Ten seconds, and the answer is exact.</div></div>
     </div>
     <div id="calibBox"></div>
     <div class="note" style="margin:16px 0 0"><span class="ic">i</span><div>
@@ -3098,54 +3098,66 @@ function setChartOffset(v){
   CFG.chart=CFG.chart||{}; CFG.chart.offset=n; save(); render();
   toast(n?`Chart clock set to ${offWord()}`:"Chart clock cleared");
 }
-/* Nobody knows their broker's GMT setting off the top of their head, and they should
-   not have to. Pick a trade, look at the chart, type the time you see there. */
+/* The first version of this asked him to find a candle by price. Price repeats —
+   the same number is touched at half a dozen different minutes — so every attempt
+   produced a different answer. Comparing the two clocks as they stand right now is
+   unambiguous and takes ten seconds. */
+function parseHM(v){
+  let t=String(v||"").trim().toUpperCase();
+  if(!t)return null;
+  const pm=/\bPM\b/.test(t), am=/\bAM\b/.test(t);
+  t=t.replace(/\s*[AP]M\b/,"").trim();
+  let m=t.match(/^(\d{1,2})\s*[:.\s]\s*(\d{1,2})/);
+  if(!m&&/^\d{3,4}$/.test(t))m=[0,t.slice(0,t.length-2),t.slice(-2)];
+  if(!m)return null;
+  let h=+m[1], mi=+m[2];
+  if(mi>59||h>23)return null;
+  if(pm&&h<12)h+=12;
+  if(am&&h===12)h=0;
+  return h*60+mi;
+}
+const hmText=n=>String(Math.floor(((n%1440)+1440)%1440/60)).padStart(2,"0")+":"+String(((n%60)+60)%60).padStart(2,"0");
 function openCalib(){
   const box=document.getElementById("calibBox"); if(!box)return;
   if(box.dataset.open==="1"){box.dataset.open="";box.innerHTML="";return}
   box.dataset.open="1";
-  const withTime=DB.trades.filter(t=>/^\d{1,2}:\d{2}/.test(t.time||"")&&+t.entry>0)
-    .slice().sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time)).slice(0,40);
-  if(!withTime.length){
-    box.innerHTML=`<div class="note warn" style="margin-top:16px"><span class="ic">!</span><div>
-      No trade here carries both a time and an entry price yet, so there is nothing to line up against a chart.</div></div>`;
-    return;
-  }
+  const now=new Date(), dev=hmText(now.getHours()*60+now.getMinutes());
   box.innerHTML=`<div class="calib">
-    <div class="sec-t">Step 1 — choose a trade you can still find on your chart</div>
-    <select id="cal_t" onchange="calibPick()">
-      ${withTime.map((t,i)=>`<option value="${i}">${longDay(t.date)} · ${esc(t.time)} · ${esc(t.symbol)} ${esc(t.dir)} · entry ${px(t.entry,t.symbol)}</option>`).join("")}
-    </select>
-    <div id="cal_body"></div>
-  </div>`;
-  window.__CAL=withTime;
-  calibPick();
-}
-function calibPick(){
-  const list=window.__CAL||[], i=+((document.getElementById("cal_t")||{}).value||0), t=list[i];
-  const body=document.getElementById("cal_body"); if(!body||!t)return;
-  body.innerHTML=`
-    <div class="sec-t" style="margin-top:16px">Step 2 — open that chart and find the candle where price is ${px(t.entry,t.symbol)}</div>
-    <div class="mini">Your platform stamped this trade at <b class="mono">${esc(t.time)}</b>. Type the time your chart shows for that same candle.</div>
-    <div class="grid g2" style="margin-top:10px">
-      <div><label>The time your chart shows</label><input type="time" id="cal_hm" value="${esc(t.time)}"></div>
-      <div style="align-self:end"><button class="btn" style="width:100%" onclick="calibApply(${i})">Use this</button></div>
+    <div class="sec-t">Both clocks, as they read right now</div>
+    <p class="mini" style="margin:2px 0 12px">Don't hunt for a candle — the same price is touched at a dozen different minutes, which is why the answer kept changing. Just read the two clocks side by side. In MetaTrader the server time sits at the top of the Market Watch window.</p>
+    <div class="grid g2">
+      <div><label>The time your platform shows now</label>
+        <input id="cal_plat" placeholder="e.g. 16:05" autocomplete="off">
+        <div class="mini" style="margin-top:5px">MetaTrader → View → Market Watch. The clock at the top is the server's.</div></div>
+      <div><label>The time your chart shows now</label>
+        <input id="cal_chart" value="${dev}" autocomplete="off">
+        <div class="mini" style="margin-top:5px">Pre-filled from this device (${dev}). Change it only if your charting app runs on a different clock.</div></div>
     </div>
-    <div id="cal_out" class="mini" style="margin-top:10px"></div>`;
+    <button class="btn" style="margin-top:12px" onclick="calibApply()">Work out the offset</button>
+    <div id="cal_out" class="mini" style="margin-top:11px"></div>
+  </div>`;
 }
-function calibApply(i){
-  const t=(window.__CAL||[])[i], v=(document.getElementById("cal_hm")||{}).value||"";
-  const out=document.getElementById("cal_out"); if(!t||!out)return;
-  if(!/^\d{1,2}:\d{2}/.test(v)){out.innerHTML=`<span class="neg">That is not a time.</span>`;return}
-  const mm=x=>{const [h,m]=x.split(":").map(Number);return h*60+m};
-  let d=mm(v)-mm(t.time);
-  if(d> 720)d-=1440;                       // a small offset that wrapped midnight
+function calibApply(){
+  const out=document.getElementById("cal_out"); if(!out)return;
+  const a=parseHM((document.getElementById("cal_plat")||{}).value),
+        b=parseHM((document.getElementById("cal_chart")||{}).value);
+  if(a===null||b===null){
+    out.innerHTML=`<span class="neg">Both boxes need a time — <b>16:05</b> or <b>4:05 PM</b> both work.</span>`;return;
+  }
+  let d=b-a;
+  if(d> 720)d-=1440;
   if(d<-720)d+=1440;
-  const inp=document.getElementById("n_choff"); if(inp)inp.value=d;
-  setChartOffset(d);
-  out.innerHTML=d
-    ? `Your chart runs <b>${offWord()}</b> against your platform. Every time in the journal now reads in your chart's clock.`
-    : `The two clocks already agree — nothing to correct.`;
+  const snap=Math.round(d/15)*15, clean=Math.abs(d-snap)<=4&&d!==snap;
+  const set=v=>{const i=document.getElementById("n_choff"); if(i)i.value=v; setChartOffset(v);};
+  set(clean?snap:d);
+  const w=n=>{const x=Math.abs(n),h=Math.floor(x/60),m=x%60;
+    return (n>0?"+":n<0?"−":"")+(h?h+"h":"")+(h&&m?" ":"")+(m||!h?m+"m":"")};
+  out.innerHTML = d===0&&snap===0
+    ? `Both clocks agree. Nothing to correct — your journal times already match your chart.`
+    : clean
+      ? `The two clocks are <b>${w(d)}</b> apart. Broker servers sit on whole or half hours, so that is really <b>${w(snap)}</b> and a few seconds of you reading one clock after the other. Set to <b>${w(snap)}</b>.`
+      : `Your chart runs <b>${w(d)}</b> against your platform. Every time in the journal now reads in your chart's clock.${
+          Math.abs(d%30)>4?` <span class="au">That is an unusual gap — broker clocks are normally a whole or half hour apart. Worth reading both clocks once more.</span>`:""}`;
 }
 function setBeUnit(v){CFG.risk.beUnit=(v==="r")?"r":"usd";save();render();toast("Updated")}
 function edName(key,i,val){

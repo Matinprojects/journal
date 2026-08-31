@@ -343,6 +343,8 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .facts div:hover{border-color:var(--line)}
 .facts .l{font-size:9.5px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase}
 .facts .v{font-size:15px;font-weight:700;margin-top:3px;font-family:"JetBrains Mono",monospace}
+.calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
+  background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .factgrp{margin-bottom:11px}
 .factgrp .gl{font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
   color:var(--dim);margin:0 0 6px 3px}
@@ -1479,6 +1481,22 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
     </div>
   </div>
 
+  <div class="card rv" style="--d:195ms">
+    <h2><span class="dot"></span>Chart Clock<span class="tail" id="clkTail"></span></h2>
+    <p class="hint">Your platform stamps every trade in its own server clock. Your charting app draws the same candles in a different one. The gap between them is why a trade can look like it happened at the wrong candle when you go back to review it. Set the gap once and every time in this journal will be shown in the clock you actually look at.</p>
+    <div class="grid g2">
+      <div><label>Your chart is ahead of your platform by (minutes)</label>
+        <input type="number" step="15" id="n_choff" onchange="setChartOffset(this.value)">
+        <div class="mini" style="margin-top:6px">Negative if your chart is behind. 30 means your chart reads 16:56 when your platform says 16:26.</div></div>
+      <div><label>Not sure? Work it out from a trade</label>
+        <button class="btn sec" style="width:100%" onclick="openCalib()">Calibrate from a trade</button>
+        <div class="mini" style="margin-top:6px">Pick a trade, find it on your chart, and type the time you see. The offset works itself out.</div></div>
+    </div>
+    <div id="calibBox"></div>
+    <div class="note" style="margin:16px 0 0"><span class="ic">i</span><div>
+      <b>This changes what you see, not what you are measured on.</b> Session windows, statistics and payouts all keep using the platform clock the trades were recorded in — which is the clock your window map was written for. Moving this number will never change a single R.</div></div>
+  </div>
+
   <div class="card rv" style="--d:210ms">
     <h2><span class="dot"></span>Trade Gate Rules</h2>
     <p class="hint">The gate reads these before every trade. Set a limit to zero to switch it off. The lockout is the only part of this app that stops you doing something — it exists because the moment you most want to ignore your rules is the moment they're worth the most.</p>
@@ -1654,6 +1672,10 @@ function defaults(){return{
  directions:[{name:"Buy"},{name:"Sell"}],
  thresholds:{total:30,cat:10,slice:8},
  risk:{def:0,minRR:1.5,dayR:2,weekR:6,beBand:0,beUnit:"usd"},
+ /* Your platform stamps trades in its server clock. Your charting app draws them in
+    another. The two are rarely the same, and the gap is why a trade looks like it
+    happened at the wrong candle. This is display only — nothing in the statistics moves. */
+ chart:{offset:0},
  product:"Trading Journal",
  feedback:"https://github.com/Matinprojects/journal/issues",   // where problems get reported; any trader can change or clear it
  goals:{monthR:0,monthLoss:0,monthUSD:0},
@@ -1775,7 +1797,7 @@ function migrate(saved){
   ["full","partial","none"].forEach((r,i)=>{if(out.adherence[i])out.adherence[i].role=r});
   if(Array.isArray(saved.checklist)&&saved.checklist.length)
     out.checklist=saved.checklist.filter(s=>s&&s.title).map(s=>({title:s.title,items:(s.items||[]).filter(i=>i&&i.t)}));
-  ["thresholds","risk","gate","payout"].forEach(k=>{if(saved[k])out[k]=Object.assign(out[k],saved[k])});
+  ["thresholds","risk","gate","payout","chart"].forEach(k=>{if(saved[k])out[k]=Object.assign(out[k],saved[k])});
   if(saved.product)out.product=saved.product;
   if(typeof saved.feedback==="string")out.feedback=saved.feedback;
   if(saved.goals)out.goals=Object.assign(out.goals||{},saved.goals);
@@ -2676,6 +2698,31 @@ function copy(text,okMsg){
     navigator.clipboard.writeText(text).then(done,fail);
   else fail();
 }
+/* the same instant, told in the clock his charting app uses */
+const chartOff=()=>+(((CFG||{}).chart||{}).offset)||0;
+function shiftHM(hm,mins){
+  if(!/^\d{1,2}:\d{2}/.test(String(hm||"")))return {t:"",d:0};
+  const [h,m]=String(hm).split(":").map(Number);
+  let tot=h*60+m+mins, d=0;
+  while(tot<0){tot+=1440;d--}
+  while(tot>=1440){tot-=1440;d++}
+  return {t:String(Math.floor(tot/60)).padStart(2,"0")+":"+String(tot%60).padStart(2,"0"), d};
+}
+/* "16:56" or "16:56 +1d" when the offset pushes it past midnight */
+function chartTime(hm){
+  const o=chartOff(); if(!o)return String(hm||"");
+  const r=shiftHM(hm,o); if(!r.t)return String(hm||"");
+  return r.t+(r.d>0?" +1d":r.d<0?" −1d":"");
+}
+const offWord=()=>{const o=chartOff(); if(!o)return "";
+  const a=Math.abs(o), h=Math.floor(a/60), m=a%60;
+  return (o>0?"+":"−")+(h?h+"h":"")+(h&&m?" ":"")+(m?m+"m":"")};
+/* the date the chart would show, when the offset crosses midnight */
+function chartDay(t){
+  const o=chartOff(); if(!o)return t.date;
+  const r=shiftHM(t.time,o); if(!r.t||!r.d)return t.date;
+  const x=new Date(t.date+"T00:00:00"); x.setDate(x.getDate()+r.d); return ymd(x);
+}
 /* "Wed 26 Aug 2026" — a date you can actually find on a chart, not "08-26" */
 function longDay(d){
   if(!d)return "—";
@@ -2697,7 +2744,8 @@ function copyChartLine(id){
   const t=DB.trades.find(x=>String(x.id)===String(id)); if(!t)return;
   const P=[];
   P.push(`${t.symbol} ${t.dir||""}`.trim());
-  P.push(longDay(t.date)+"  "+(t.time||"")+(t.ctime||closeGuess(t)?" → "+(t.ctime||closeGuess(t)):""));
+  const c1=chartTime(t.time), c2=chartTime(t.ctime||closeGuess(t));
+  P.push(longDay(chartDay(t))+"  "+c1+(c2?" → "+c2:"")+(chartOff()?"   (your chart's clock)":""));
   const pr=[];
   if(+t.entry>0)pr.push("entry "+px(t.entry,t.symbol));
   if(+t.sl>0)   pr.push("stop "+px(t.sl,t.symbol));
@@ -2708,6 +2756,7 @@ function copyChartLine(id){
   if(m)P.push(`${m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w} ${m.favourable?"in favour":"against"}`);
   P.push(`${n2(t.r)}R  ($${n2(t.pnl)})${t.session?"  ·  "+t.session:""}`);
   if(t.ticket)P.push("ticket "+t.ticket);
+  if(chartOff())P.push(`platform stamped it ${t.time}${t.ctime||closeGuess(t)?" → "+(t.ctime||closeGuess(t)):""} — offset ${offWord()}`);
   copy(P.join("\n"),"Copied — paste it beside your chart");
 }
 function renderQueue(){
@@ -2743,9 +2792,12 @@ function renderQueue(){
     <div class="tagwrap">
       <div class="factgrp"><div class="gl">When</div>
         <div class="facts">
-          <div><div class="l">Trading day</div><div class="v" style="font-size:12.5px">${longDay(t.date)}</div></div>
-          <div><div class="l">Opened</div><div class="v">${esc(t.time)||"—"}</div></div>
-          <div><div class="l">Closed</div><div class="v">${esc(t.ctime)||closeGuess(t)||"—"}</div></div>
+          <div><div class="l">Trading day</div><div class="v" style="font-size:12.5px">${longDay(chartDay(t))}</div></div>
+          <div><div class="l">Opened${chartOff()?" · chart":""}</div><div class="v">${esc(chartTime(t.time))||"—"}</div>${
+            chartOff()?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.time)} on your platform</div>`:""}</div>
+          <div><div class="l">Closed${chartOff()?" · chart":""}</div><div class="v">${
+            esc(chartTime(t.ctime||closeGuess(t)))||"—"}</div>${
+            chartOff()&&(t.ctime||closeGuess(t))?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.ctime||closeGuess(t))} on your platform</div>`:""}</div>
           <div><div class="l">Held</div><div class="v" style="font-size:13px">${t.dur!==""&&t.dur!==undefined?t.dur+"m":"—"}</div></div>
           <div><div class="l">Window</div><div class="v" style="font-size:11.5px">${esc(t.session)||"outside"}</div></div>
         </div>
@@ -3014,6 +3066,8 @@ function renderEditors(){
   document.getElementById("n_rr").value=CFG.risk.minRR;
   document.getElementById("n_day").value=CFG.risk.dayR;
   document.getElementById("n_week").value=CFG.risk.weekR;
+  const co=document.getElementById("n_choff"); if(co)co.value=((CFG.chart||{}).offset)||0;
+  const ct=document.getElementById("clkTail"); if(ct)ct.textContent=chartOff()?offWord()+" against your platform":"not set";
   const bb=document.getElementById("n_beband"); if(bb)bb.value=CFG.risk.beBand||0;
   const bu=document.getElementById("n_beunit"); if(bu)bu.value=CFG.risk.beUnit||"usd";
   document.getElementById("n_prod").value=CFG.product;
@@ -3037,6 +3091,62 @@ function renderEditors(){
 function setGateGrade(v){CFG.gate.minGrade=v;save();refreshGate();toast("Updated")}
 function setGateFlag(k,v){CFG.gate[k]=!!v;save();refreshGate();toast("Updated")}
 function setPayFlag(k,v){CFG.payout=CFG.payout||{};CFG.payout[k]=!!v;save();render();toast("Updated")}
+function setChartOffset(v){
+  let n=Math.round(+v||0);
+  if(!isFinite(n))n=0;
+  n=Math.max(-1439,Math.min(1439,n));
+  CFG.chart=CFG.chart||{}; CFG.chart.offset=n; save(); render();
+  toast(n?`Chart clock set to ${offWord()}`:"Chart clock cleared");
+}
+/* Nobody knows their broker's GMT setting off the top of their head, and they should
+   not have to. Pick a trade, look at the chart, type the time you see there. */
+function openCalib(){
+  const box=document.getElementById("calibBox"); if(!box)return;
+  if(box.dataset.open==="1"){box.dataset.open="";box.innerHTML="";return}
+  box.dataset.open="1";
+  const withTime=DB.trades.filter(t=>/^\d{1,2}:\d{2}/.test(t.time||"")&&+t.entry>0)
+    .slice().sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time)).slice(0,40);
+  if(!withTime.length){
+    box.innerHTML=`<div class="note warn" style="margin-top:16px"><span class="ic">!</span><div>
+      No trade here carries both a time and an entry price yet, so there is nothing to line up against a chart.</div></div>`;
+    return;
+  }
+  box.innerHTML=`<div class="calib">
+    <div class="sec-t">Step 1 — choose a trade you can still find on your chart</div>
+    <select id="cal_t" onchange="calibPick()">
+      ${withTime.map((t,i)=>`<option value="${i}">${longDay(t.date)} · ${esc(t.time)} · ${esc(t.symbol)} ${esc(t.dir)} · entry ${px(t.entry,t.symbol)}</option>`).join("")}
+    </select>
+    <div id="cal_body"></div>
+  </div>`;
+  window.__CAL=withTime;
+  calibPick();
+}
+function calibPick(){
+  const list=window.__CAL||[], i=+((document.getElementById("cal_t")||{}).value||0), t=list[i];
+  const body=document.getElementById("cal_body"); if(!body||!t)return;
+  body.innerHTML=`
+    <div class="sec-t" style="margin-top:16px">Step 2 — open that chart and find the candle where price is ${px(t.entry,t.symbol)}</div>
+    <div class="mini">Your platform stamped this trade at <b class="mono">${esc(t.time)}</b>. Type the time your chart shows for that same candle.</div>
+    <div class="grid g2" style="margin-top:10px">
+      <div><label>The time your chart shows</label><input type="time" id="cal_hm" value="${esc(t.time)}"></div>
+      <div style="align-self:end"><button class="btn" style="width:100%" onclick="calibApply(${i})">Use this</button></div>
+    </div>
+    <div id="cal_out" class="mini" style="margin-top:10px"></div>`;
+}
+function calibApply(i){
+  const t=(window.__CAL||[])[i], v=(document.getElementById("cal_hm")||{}).value||"";
+  const out=document.getElementById("cal_out"); if(!t||!out)return;
+  if(!/^\d{1,2}:\d{2}/.test(v)){out.innerHTML=`<span class="neg">That is not a time.</span>`;return}
+  const mm=x=>{const [h,m]=x.split(":").map(Number);return h*60+m};
+  let d=mm(v)-mm(t.time);
+  if(d> 720)d-=1440;                       // a small offset that wrapped midnight
+  if(d<-720)d+=1440;
+  const inp=document.getElementById("n_choff"); if(inp)inp.value=d;
+  setChartOffset(d);
+  out.innerHTML=d
+    ? `Your chart runs <b>${offWord()}</b> against your platform. Every time in the journal now reads in your chart's clock.`
+    : `The two clocks already agree — nothing to correct.`;
+}
 function setBeUnit(v){CFG.risk.beUnit=(v==="r")?"r":"usd";save();render();toast("Updated")}
 function edName(key,i,val){
   val=String(val||"").trim();
@@ -3728,7 +3838,8 @@ function renderBoxDay(bx,k){
         const v=vmap[t.id];
         const scr=isScratch(t);
         return `<div class="tev ${t.pnl>0?"w":scr?"s":"l"}" style="animation-delay:${i*45}ms">
-          <div class="tm">${esc(t.time)}<div class="mini">${t.dur?t.dur+"m":""}</div></div>
+          <div class="tm">${esc(chartTime(t.time))}<div class="mini">${t.dur?t.dur+"m":""}</div>${
+            chartOff()?`<div class="mini" style="opacity:.6">${esc(t.time)} plat.</div>`:""}</div>
           <div class="mt">
             <div class="a">${esc(t.strat)||'<span class="thin">untagged</span>'}
               ${t.grade?`<span class="tag ${gradePol(t.grade)==="good"?"g":gradePol(t.grade)==="bad"?"r":"a"}" style="margin-left:6px">${esc(t.grade)}</span>`:""}</div>
@@ -3739,7 +3850,7 @@ function renderBoxDay(bx,k){
                 m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w}</span>${
                 t.sl?`<span style="opacity:.6"> · stop ${px(t.sl,t.symbol)}</span>`:""}${
                 t.tp?`<span style="opacity:.6"> · target ${px(t.tp,t.symbol)}</span>`:""}${
-                (t.ctime||closeGuess(t))?`<span style="opacity:.6"> · closed ${esc(t.ctime||closeGuess(t))}</span>`:""}</div>`;
+                (t.ctime||closeGuess(t))?`<span style="opacity:.6"> · closed ${esc(chartTime(t.ctime||closeGuess(t)))}</span>`:""}</div>`;
               return t.entry?`<div class="b mono">entry ${px(t.entry,t.symbol)}</div>`:""})()}
             ${(()=>{const p=planOf(t);
               if(!p||!p.landed)return "";

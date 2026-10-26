@@ -11,7 +11,7 @@
    activate, so testers get the new version on their next visit.
    ============================================================ */
 
-const CACHE = "tj-v1.0.0-beta.2";
+const CACHE = "tj-v1.0.0-beta.3";
 
 const SHELL = [
   "./",

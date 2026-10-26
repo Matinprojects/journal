@@ -343,6 +343,8 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .facts div:hover{border-color:var(--line)}
 .facts .l{font-size:9.5px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase}
 .facts .v{font-size:15px;font-weight:700;margin-top:3px;font-family:"JetBrains Mono",monospace}
+.runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
+  background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .factgrp{margin-bottom:11px}
@@ -1469,6 +1471,20 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
       <div><label>Min trades per strategy</label><input type="number" id="n_cat" onchange="setNum('thresholds','cat',this.value)"></div>
       <div><label>Min trades per slice</label><input type="number" id="n_slice" onchange="setNum('thresholds','slice',this.value)"></div>
       <div><label>Default risk per trade ($)</label><input type="number" step="0.01" id="n_risk" onchange="setNum('risk','def',this.value)"></div>
+      <div style="grid-column:1/-1;padding:12px 14px;border-radius:var(--r);background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.16)">
+        <label class="row" style="gap:9px;align-items:center;margin:0;cursor:pointer">
+          <input type="checkbox" id="n_rfixed" onchange="setFixedRisk(this.checked)">
+          <span>I risk the same amount on every trade</span></label>
+        <div class="mini" style="margin-top:7px">Turn this on if an expert advisor, or your own habit, sizes every position to the same money. Your statement shows the stop <b>as it stood when the trade closed</b> — so every trade where you moved the stop arrives claiming you risked less than you did, and its R comes out inflated. With this on, the journal measures against the figure above instead of believing the statement.</div>
+        <div class="grid g2" style="margin-top:10px">
+          <div><label>Allow this much variation (%)</label>
+            <input type="number" step="5" id="n_rband" onchange="setNum('risk','band',this.value)">
+            <div class="mini" style="margin-top:5px">A trade whose risk lands inside this much of your figure is taken at face value. Outside it, the journal assumes the stop was moved. 35% around $25 accepts anything from $16 to $34.</div></div>
+          <div style="align-self:end"><button class="btn sec" style="width:100%" onclick="repairRisk()">Repair the trades already here</button>
+            <div class="mini" style="margin-top:5px">Applies the same rule to everything you have imported so far. It shows you what would change before changing anything.</div></div>
+        </div>
+        <div id="riskFixNote"></div>
+      </div>
       <div><label>Minimum risk-to-reward</label><input type="number" step="0.1" id="n_rr" onchange="setNum('risk','minRR',this.value)"></div>
       <div><label>Daily loss limit (R)</label><input type="number" step="0.5" id="n_day" onchange="setNum('risk','dayR',this.value)"></div>
       <div><label>Weekly loss limit (R)</label><input type="number" step="0.5" id="n_week" onchange="setNum('risk','weekR',this.value)"></div>
@@ -1479,6 +1495,16 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
       <div style="grid-column:1/-1"><label>Where testers should report problems (link)</label>
         <input id="n_feedback" placeholder="https://github.com/you/journal/issues" onchange="setFeedback(this.value)"></div>
     </div>
+  </div>
+
+  <div class="card rv" style="--d:190ms">
+    <h2><span class="dot"></span>Sync Across Your Devices<span class="tail" id="clTail"></span></h2>
+    <p class="hint">A browser keeps its storage to itself, so the journal on your phone and the journal on your laptop are two separate journals however you open them. This gives them one shared copy — held in a private gist in <b>your own</b> GitHub account. It never passes through any server of mine, which is the whole point.</p>
+    <div id="cloudBody"></div>
+    <div id="cloudNote"></div>
+    <div class="note" style="margin:16px 0 0"><span class="ic">i</span><div>
+      <b>Syncing merges, it never overwrites.</b> Trade on your laptop in the morning and your phone in the afternoon and you end up with both, not whichever saved last. Delete a trade and it goes from every device. If anything goes wrong mid-sync, this device is put back exactly as it was.
+      <br><br>Chart screenshots stay on the device that took them — they are far too large to carry this way. Use <b>Data → Backup</b> if you want those moved.</div></div>
   </div>
 
   <div class="card rv" style="--d:195ms">
@@ -1671,11 +1697,12 @@ function defaults(){return{
  adherence:[{name:"Followed",role:"full"},{name:"Partial",role:"partial"},{name:"Broke",role:"none"}],
  directions:[{name:"Buy"},{name:"Sell"}],
  thresholds:{total:30,cat:10,slice:8},
- risk:{def:0,minRR:1.5,dayR:2,weekR:6,beBand:0,beUnit:"usd"},
+ risk:{def:0,minRR:1.5,dayR:2,weekR:6,beBand:0,beUnit:"usd",fixed:false,band:35},
  /* Your platform stamps trades in its server clock. Your charting app draws them in
     another. The two are rarely the same, and the gap is why a trade looks like it
     happened at the wrong candle. This is display only — nothing in the statistics moves. */
  chart:{offset:0},
+ cloud:{gistId:"",auto:true,last:0,lastNote:"",cfgTouched:0},
  product:"Trading Journal",
  feedback:"https://github.com/Matinprojects/journal/issues",   // where problems get reported; any trader can change or clear it
  goals:{monthR:0,monthLoss:0,monthUSD:0},
@@ -1727,7 +1754,7 @@ const keyFor=i=>KEYS[i]||"";
    STATE
    ============================================================ */
 let DB={trades:[],sessions:[],checks:{},rules:[],map:{},cfg:null,seen:false,boxes:[],
-        money:[],invests:[],sync:null,lock:null,cutoff:""};
+        money:[],invests:[],sync:null,lock:null,cutoff:"",gone:[]};
 /* Some browsers refuse storage entirely to a page opened straight from a file.
    Silently losing every trade is the worst possible failure here, so find out now. */
 let STORE_OK=true, STORE_WHY="";
@@ -1743,6 +1770,7 @@ try{const s=localStorage.getItem("tj_v1");if(s)DB=Object.assign(DB,JSON.parse(s)
   const arr=k=>{if(!Array.isArray(DB[k])){DB[k]=[];LOAD_REPAIRED++}};
   const obj=k=>{if(!DB[k]||typeof DB[k]!=="object"||Array.isArray(DB[k])){DB[k]={};LOAD_REPAIRED++}};
   ["trades","sessions","rules","boxes","money","invests"].forEach(arr);
+  if(!Array.isArray(DB.gone))DB.gone=[];     // new in this version; absence is not damage
   ["checks","map"].forEach(obj);
   if(typeof DB.cutoff!=="string"){DB.cutoff="";LOAD_REPAIRED++}
   // drop anything in the trade list that is not a usable trade
@@ -1797,6 +1825,7 @@ function migrate(saved){
   ["full","partial","none"].forEach((r,i)=>{if(out.adherence[i])out.adherence[i].role=r});
   if(Array.isArray(saved.checklist)&&saved.checklist.length)
     out.checklist=saved.checklist.filter(s=>s&&s.title).map(s=>({title:s.title,items:(s.items||[]).filter(i=>i&&i.t)}));
+  if(saved.cloud&&typeof saved.cloud==="object")out.cloud=Object.assign(out.cloud||{},saved.cloud);
   ["thresholds","risk","gate","payout","chart"].forEach(k=>{if(saved[k])out[k]=Object.assign(out[k],saved[k])});
   if(saved.product)out.product=saved.product;
   if(typeof saved.feedback==="string")out.feedback=saved.feedback;
@@ -1809,6 +1838,7 @@ function migrate(saved){
   return out;
 }
 const save=()=>{DB.cfg=CFG;
+  if(typeof cloudSoon==="function")cloudSoon();
   try{localStorage.setItem("tj_v1",JSON.stringify(DB))}
   catch(e){
     STORE_OK=false; STORE_WHY=(e&&e.name)||"blocked";
@@ -1902,6 +1932,49 @@ function px(v,sym){
   const d = /XAU|GOLD|XAG|SILVER|US30|NAS|SPX|DE40|BTC|ETH/.test(sym) ? 2
           : /JPY/.test(sym) ? 3 : 5;
   return v.toFixed(d);
+}
+/* How far the trade actually ran, measured in R. Reading the extreme price off a
+   chart is easy; converting it to R in your head is not, so the journal does it.
+   MFE is the best it ever showed you, MAE the worst it put you through. The gap
+   between MFE and what you banked is the part of the move your exit gave away. */
+function runOf(t,bestPx,worstPx){
+  const e=+t.entry; if(!(e>0))return null;
+  const sold=/sell|short/i.test(t.dir||"");
+
+  /* How many dollars one point of price is worth on THIS trade. Taken from what the
+     trade actually paid, which needs no lot size and no contract spec. */
+  const x=+t.exitp, pnl=+t.pnl;
+  let perPoint = (x>0 && Math.abs(x-e)>1e-9 && isFinite(pnl) && pnl!==0)
+    ? Math.abs(pnl)/Math.abs(x-e) : 0;
+
+  /* The dollars at stake. t.risk is the figure the journal already trusts — it has been
+     through the median repair that undoes a trailed stop. The stop printed on the
+     statement is where the stop ENDED, so a trailed stop would otherwise make a 1R loss
+     look like 8R of run. Only fall back to entry-minus-stop when there is nothing else. */
+  const riskUSD=+t.risk||0;
+  let perR;                                   // price points in one R
+  if(perPoint>0 && riskUSD>0) perR = riskUSD/perPoint;
+  else if(+t.sl>0)            perR = Math.abs(e-(+t.sl));
+  else                        return null;
+  if(!(perR>0)||!isFinite(perR))return null;
+
+  const fav = p => (sold ? e-p : p-e) / perR;
+  const out={perR, fromRisk: perPoint>0&&riskUSD>0};
+  if(+bestPx>0)  out.mfe = Math.max(0,  fav(+bestPx));
+  if(+worstPx>0) out.mae = Math.max(0, -fav(+worstPx));
+  return out;
+}
+function runLine(t,mfe,mae){
+  const r=+t.r||0, bits=[];
+  if(mfe!==undefined&&mfe!==""&&isFinite(+mfe)){
+    const m=+mfe, left=m-r;
+    bits.push(`It ran <b class="mono pos">${n2(m)}R</b> in your favour at best`);
+    if(left>0.15)bits.push(`you banked <b class="mono">${n2(r)}R</b>, so <b class="mono neg">${n2(left)}R</b> was left on the table`);
+    else if(m>0)bits.push(`you banked <b class="mono">${n2(r)}R</b> of it — close to everything it offered`);
+  }
+  if(mae!==undefined&&mae!==""&&isFinite(+mae)&&+mae>0.05)
+    bits.push(`it went <b class="mono neg">${n2(+mae)}R</b> against you first`);
+  return bits.length?bits.join(", ")+"." : "";
 }
 /* the trade as it was designed: stop, target, and the reward he was playing for.
    Then where the exit actually landed between them — which is the whole question
@@ -2385,6 +2458,31 @@ function rowToTrade(r,map,opt){
    it started. Move a stop to breakeven and the report implies you risked almost nothing,
    which would inflate that trade\u2019s R beyond all meaning. So: derive everyone\u2019s risk,
    take the median, and repair any row whose risk collapsed to a fraction of it. */
+/* A stop that was moved before the trade closed is the single most destructive thing
+   a statement can carry, because R is measured against it. Trail a $25 stop down to
+   $7 of risk and a $20 win reads 2.74R instead of 0.80R — and every statistic built
+   on R inherits the lie. Two defences:
+
+   1. If the trader says their risk is fixed (an EA sizing every trade the same way),
+      believe them over the statement. That is exact, and needs no guessing.
+   2. Otherwise fall back to the median: a row whose risk collapsed well below what
+      every other row shows was almost certainly trailed. */
+function fixedRisk(){
+  const R=CFG.risk||{};
+  return R.fixed&&+R.def>0 ? +R.def : 0;
+}
+function riskBand(){ const b=+((CFG.risk||{}).band); return b>0&&b<100 ? b/100 : 0.35 }
+/* returns the risk this trade should be measured against, or 0 to leave it alone */
+function trueRisk(derived,med){
+  const F=fixedRisk();
+  if(F>0){
+    if(!(derived>0))return F;
+    const off=Math.abs(derived-F)/F;
+    return off>riskBand() ? F : 0;        // inside the band, the statement is believable
+  }
+  if(med>0&&derived>0&&derived<med*0.5)return med;
+  return 0;
+}
 function rowsToTrades(rows,map,opt){
   const pass1=rows.map(r=>rowToTrade(r,map,opt));
   const solid=pass1.filter(t=>t&&!t.skip&&!t.riskEst).map(t=>t.risk).sort((a,b)=>a-b);
@@ -2395,8 +2493,10 @@ function rowsToTrades(rows,map,opt){
   }
   const o2=Object.assign({},opt,{estRisk:opt.estRisk||med});
   const out=rows.map(r=>rowToTrade(r,map,o2));
-  if(med)out.forEach(t=>{
-    if(t&&!t.skip&&t.risk<med*0.25){t.risk=med;t.r=t.pnl/med;t.riskEst=true;t.moved=true}
+  out.forEach(t=>{
+    if(!t||t.skip)return;
+    const fix=trueRisk(t.risk,med);
+    if(fix>0&&Math.abs(fix-t.risk)>0.005){t.risk=fix;t.r=t.pnl/fix;t.riskEst=true;t.moved=true}
   });
   out.medRisk=med;
   return out;
@@ -2659,7 +2759,7 @@ document.addEventListener("paste",e=>{
 /* ============================================================
    TAG QUEUE
    ============================================================ */
-let TQ={i:0,step:0,draft:{},shot:"",review:"",last:null};
+let TQ={i:0,step:0,draft:{},shot:"",review:"",best:"",worst:"",last:null};
 /* Key names differ per platform and the glyphs are guesswork for most people.
    Spell them the way the keyboard in front of them is labelled. */
 const IS_MAC=/Mac|iPhone|iPad|iPod/.test((navigator.platform||"")+(navigator.userAgent||""));
@@ -2843,6 +2943,18 @@ function renderQueue(){
             <div class="chip ${TQ.draft[s.k]===v?"on "+(s.sty?s.sty(v):""):""}" onclick="pick(${si},'${jsq(v)}')">
               ${esc(v)}${keyFor(vi)?`<span class="k">${keyFor(vi)}</span>`:""}</div>`).join("")}</div>
         </div>`).join("")}
+      <div class="sec-t">How far it ran<span class="mini" style="text-transform:none;letter-spacing:0;margin-left:8px">read the two extremes off your chart — the R works itself out</span></div>
+      <div class="runzone">
+        <div class="grid g2">
+          <div><label>Best price it reached</label>
+            <input type="number" step="any" id="tq_best" placeholder="${px(t.tp,t.symbol)||"the high point of the move"}"
+                   value="${TQ.best||""}" oninput="TQ.best=this.value;runPreview()"></div>
+          <div><label>Worst price it reached</label>
+            <input type="number" step="any" id="tq_worst" placeholder="${px(t.sl,t.symbol)||"the low point against you"}"
+                   value="${TQ.worst||""}" oninput="TQ.worst=this.value;runPreview()"></div>
+        </div>
+        <div id="runOut" class="mini" style="margin-top:10px"></div>
+      </div>
       <div class="sec-t">Chart &amp; note<span class="mini" style="text-transform:none;letter-spacing:0;margin-left:8px">optional — but this is what you'll actually read back in a month</span></div>
       <div class="evid">
         <div class="shotzone ${TQ.shot?"has":""}" id="shotZone"
@@ -2882,12 +2994,13 @@ function renderQueue(){
         <button class="btn sec sm" onclick="undoLastTag()">Go back and fix it</button>
       </div>`:""}
     </div></div>`;
+  runPreview();                 // the line under the two prices is part of the panel, not an afterthought
 }
 /* move through the queue without tagging anything */
 function prevTrade(){const q=untagged();if(q.length<2)return;
-  TQ.i=(TQ.i-1+q.length)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";renderQueue()}
+  TQ.i=(TQ.i-1+q.length)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";TQ.best="";TQ.worst="";renderQueue()}
 function nextTrade(){const q=untagged();if(q.length<2)return;
-  TQ.i=(TQ.i+1)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";renderQueue()}
+  TQ.i=(TQ.i+1)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";TQ.best="";TQ.worst="";renderQueue()}
 
 /* Reopen the trade you just saved. Its tags are stripped so it returns to the
    queue, and they are loaded back into the draft so you only change what was wrong. */
@@ -2942,11 +3055,35 @@ function fillTag(t,d){
   if(!t.exitreason&&t.exitp&&t.tp&&+t.exitp===+t.tp&&tgt)t.exitreason=tgt.name;
   if(!t.exitreason&&t.exitp&&t.sl&&+t.exitp===+t.sl&&stp)t.exitreason=stp.name;
 }
+function runPreview(){
+  const out=document.getElementById("runOut"); if(!out)return;
+  const q=untagged(); if(!q.length)return;
+  const t=q[TQ.i];
+  const r=runOf(t,TQ.best,TQ.worst);
+  if(!r){
+    out.innerHTML=`This trade has no entry and stop recorded, so a price cannot be turned into R. Leave these blank, or add the prices in <b>Log Trade</b>.`;
+    return;
+  }
+  if(!TQ.best&&!TQ.worst){
+    out.innerHTML=`Optional — but this is the one number your statistics cannot work out for themselves. It is what tells you later whether your exits are leaving money behind.`;
+    return;
+  }
+  const line=runLine(t,r.mfe,r.mae);
+  const note=r.fromRisk
+    ? ""
+    : `<br><span class="au">Measured against the stop on your statement. If you trailed that stop, the statement shows where it ended, not where it started — so this R may read low.</span>`;
+  out.innerHTML=(line||`Those prices do not sit on the right side of your entry — check them against the chart.`)+note;
+}
 function commitTag(){
   const q=untagged(); if(!q.length)return;
   const t=q[TQ.i], d=TQ.draft;
   if(!d.strat||!d.emo||!d.adh)return toast("Strategy, mental state and adherence are required",1);
   fillTag(t,d);
+  const run=runOf(t,TQ.best,TQ.worst);
+  if(run){
+    if(run.mfe!==undefined){t.mfe=+n2(run.mfe); t.mfeP=+TQ.best}
+    if(run.mae!==undefined){t.mae=+n2(run.mae); t.maeP=+TQ.worst}
+  }
   t.review=(TQ.review||"").trim();
   const img=TQ.shot;
   if(img){
@@ -2955,7 +3092,7 @@ function commitTag(){
     shotSet(t,img).catch(()=>{t.shot=0;save();toast("The image could not be stored",1)});
   }
   TQ.last={id:t.id,date:t.date,time:t.time,strat:t.strat};
-  TQ.draft={grade:d.grade}; TQ.step=0; TQ.i=0; TQ.shot=""; TQ.review="";
+  TQ.draft={grade:d.grade}; TQ.step=0; TQ.i=0; TQ.shot=""; TQ.review=""; TQ.best=""; TQ.worst="";
   save();render();
 }
 function applyRestOfDay(){
@@ -3066,6 +3203,9 @@ function renderEditors(){
   document.getElementById("n_rr").value=CFG.risk.minRR;
   document.getElementById("n_day").value=CFG.risk.dayR;
   document.getElementById("n_week").value=CFG.risk.weekR;
+  renderCloud();
+  const rf=document.getElementById("n_rfixed"); if(rf)rf.checked=!!CFG.risk.fixed;
+  const rb=document.getElementById("n_rband"); if(rb)rb.value=CFG.risk.band||35;
   const co=document.getElementById("n_choff"); if(co)co.value=((CFG.chart||{}).offset)||0;
   const ct=document.getElementById("clkTail"); if(ct)ct.textContent=chartOff()?offWord()+" against your platform":"not set";
   const bb=document.getElementById("n_beband"); if(bb)bb.value=CFG.risk.beBand||0;
@@ -3158,6 +3298,58 @@ function calibApply(){
       ? `The two clocks are <b>${w(d)}</b> apart. Broker servers sit on whole or half hours, so that is really <b>${w(snap)}</b> and a few seconds of you reading one clock after the other. Set to <b>${w(snap)}</b>.`
       : `Your chart runs <b>${w(d)}</b> against your platform. Every time in the journal now reads in your chart's clock.${
           Math.abs(d%30)>4?` <span class="au">That is an unusual gap — broker clocks are normally a whole or half hour apart. Worth reading both clocks once more.</span>`:""}`;
+}
+function setFixedRisk(on){
+  CFG.risk.fixed=!!on; save(); render();
+  toast(on?"Risk treated as fixed":"Risk read from each statement");
+  if(on)repairRisk(true);
+}
+/* Nothing is touched until he has seen the list. A silent mass edit of every R in the
+   journal is exactly the kind of thing that destroys trust in a number. */
+function repairRisk(preview){
+  const note=document.getElementById("riskFixNote"); if(!note)return;
+  const hist=DB.trades.filter(t=>+t.risk>0).map(t=>+t.risk).sort((a,b)=>a-b);
+  const med=hist.length>=5?hist[Math.floor(hist.length/2)]:0;
+  const hits=[];
+  DB.trades.forEach(t=>{
+    const fix=trueRisk(+t.risk||0,med);
+    if(fix>0&&Math.abs(fix-(+t.risk||0))>0.005)
+      hits.push({t,from:+t.risk||0,to:fix,rFrom:+t.r||0,rTo:(+t.pnl||0)/fix});
+  });
+  if(!hits.length){
+    note.innerHTML=`<div class="note ok" style="margin:14px 0 0"><span class="ic">✓</span><div>
+      Every trade here already sits within your band. Nothing needs changing.</div></div>`;
+    return;
+  }
+  if(preview!==false&&!note.dataset.armed){
+    note.dataset.armed="1";
+    const worst=hits.slice().sort((a,b)=>Math.abs(b.rFrom-b.rTo)-Math.abs(a.rFrom-a.rTo)).slice(0,6);
+    note.innerHTML=`<div class="note warn" style="margin:14px 0 0"><span class="ic">!</span><div>
+      <b>${hits.length} of ${DB.trades.length} trades look like the stop was moved before they closed.</b>
+      Their R is being measured against a stop that was no longer the one you took.
+      <div class="scroll" style="margin:12px 0"><table><thead><tr>
+        <th>Date</th><th>Risk says</th><th>Should be</th><th>R now</th><th>R after</th></tr></thead><tbody>
+        ${worst.map(h=>`<tr><td class="mono">${esc(h.t.date)} ${esc(h.t.time||"")}</td>
+          <td class="mono">$${n2(h.from)}</td><td class="mono">$${n2(h.to)}</td>
+          <td class="mono ${h.rFrom>=0?"pos":"neg"}">${n2(h.rFrom)}R</td>
+          <td class="mono ${h.rTo>=0?"pos":"neg"}">${n2(h.rTo)}R</td></tr>`).join("")}
+      </tbody></table></div>
+      ${hits.length>worst.length?`<div class="mini" style="margin-bottom:10px">…and ${hits.length-worst.length} more.</div>`:""}
+      Your money is unchanged — every P/L stays exactly as your broker reported it. Only R moves.
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="repairRisk(false)">Repair these ${hits.length}</button>
+        <button class="btn sec" onclick="document.getElementById('riskFixNote').innerHTML='';document.getElementById('riskFixNote').dataset.armed=''">Leave them</button>
+      </div></div></div>`;
+    return;
+  }
+  hits.forEach(h=>{h.t.risk=h.to; h.t.r=(+h.t.pnl||0)/h.to; h.t.riskEst=true; h.t.moved=true});
+  note.dataset.armed="";
+  save(); render();
+  const n=document.getElementById("riskFixNote");
+  if(n)n.innerHTML=`<div class="note ok" style="margin:14px 0 0"><span class="ic">✓</span><div>
+    <b>${hits.length} trades repaired.</b> Their R now reflects what you actually put at risk.
+    Every figure built on R — expectancy, your box, the payout advice — has been recalculated.</div></div>`;
+  toast(hits.length+" trades repaired");
 }
 function setBeUnit(v){CFG.risk.beUnit=(v==="r")?"r":"usd";save();render();toast("Updated")}
 function edName(key,i,val){
@@ -3357,14 +3549,19 @@ function itemAdd(si,v){v=String(v||"").trim();if(!v)return;CFG.checklist[si].ite
 
 /* ---- config export / import / reset ---- */
 function exportCfg(){
+  /* setups get shared with other traders — strip anything personal to this account */
+  const clean=JSON.parse(JSON.stringify(CFG));
+  delete clean.cloud;
   const a=document.createElement("a");
-  a.href=URL.createObjectURL(new Blob([JSON.stringify(CFG,null,2)],{type:"application/json"}));
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(clean,null,2)],{type:"application/json"}));
   a.download="journal_setup.json";a.click();toast("Setup exported");
 }
 function importCfg(inp){
   const f=inp.files[0];if(!f)return;const rd=new FileReader();
   rd.onload=e=>{
-    try{CFG=migrate(JSON.parse(e.target.result));
+    try{const keep=CFG.cloud;
+      CFG=migrate(JSON.parse(e.target.result));
+      CFG.cloud=keep||{gistId:"",auto:true,last:0,lastNote:""};
       DB.trades.forEach(t=>t.session=sess(t.time));
       save();buildForm();render();toast("Setup imported")}
     catch(err){toast("That file isn't a valid setup",1)}
@@ -3864,6 +4061,8 @@ function renderBoxDay(bx,k){
                 t.tp?`<span style="opacity:.6"> · target ${px(t.tp,t.symbol)}</span>`:""}${
                 (t.ctime||closeGuess(t))?`<span style="opacity:.6"> · closed ${esc(chartTime(t.ctime||closeGuess(t)))}</span>`:""}</div>`;
               return t.entry?`<div class="b mono">entry ${px(t.entry,t.symbol)}</div>`:""})()}
+            ${(()=>{const L=runLine(t,t.mfe,t.mae);
+              return L?`<div class="b" style="white-space:normal;opacity:.9">${L}</div>`:""})()}
             ${(()=>{const p=planOf(t);
               if(!p||!p.landed)return "";
               const w=p.landed==="target"?["g","closed at target"]
@@ -4368,7 +4567,7 @@ function closeBox(id){
 function deleteBox(id){
   const b=boxes().find(x=>x.id===id);if(!b)return;
   if(!confirm(`Delete "${b.name}"? Your trades are kept — they simply stop belonging to a box.`))return;
-  DB.boxes=boxes().filter(x=>x.id!==id);
+  bury("boxes",id);DB.boxes=boxes().filter(x=>x.id!==id);
   if(BXVIEW.id===id)BXVIEW={id:"",day:""};
   save();render();toast("Box deleted");
 }
@@ -5112,7 +5311,7 @@ function renderData(){
 function del(id){if(!confirm("Delete this trade?"))return;
   const t=DB.trades.find(x=>x.id===id);
   if(t&&t.shot)shotDel(t).catch(()=>{});          // don't leave the image orphaned
-  DB.trades=DB.trades.filter(t=>t.id!==id);recomputeTradeNos();save();render()}
+  bury("trades",id);DB.trades=DB.trades.filter(t=>t.id!==id);recomputeTradeNos();save();render()}
 /* attach a chart, or write a note, on any trade after the fact */
 async function attachTo(id,inp){
   const f=inp.files&&inp.files[0]; inp.value="";
@@ -5164,7 +5363,8 @@ async function exportAll(){
     data:{
       trades:DB.trades, sessions:DB.sessions, checks:DB.checks, rules:DB.rules,
       boxes:DB.boxes, money:DB.money, invests:DB.invests, map:DB.map,
-      cutoff:DB.cutoff||"", lock:DB.lock||null, cfg:CFG
+      cutoff:DB.cutoff||"", lock:DB.lock||null, gone:DB.gone||[],
+      cfg:(()=>{const c=JSON.parse(JSON.stringify(CFG));delete c.cloud;return c})()
     },
     shots:{}
   };
@@ -5407,7 +5607,7 @@ function addMoney(){
   renderMoney();toast(e.rep?"Repeating entry added":"Entry added");
 }
 function delMoney(id){
-  DB.money=DB.money.filter(m=>m.id!==id);save();renderMoney();toast("Entry removed");
+  bury("money",id);DB.money=DB.money.filter(m=>m.id!==id);save();renderMoney();toast("Entry removed");
 }
 function addInvest(){
   const name=document.getElementById("ivName").value.trim();
@@ -5424,7 +5624,7 @@ function setInvest(id,k,v){
   const x=(DB.invests||[]).find(i=>i.id===id); if(!x)return;
   x[k]=k==="name"?v:(+v||0); save(); renderMoney();
 }
-function delInvest(id){DB.invests=DB.invests.filter(v=>v.id!==id);save();renderMoney();toast("Holding removed")}
+function delInvest(id){bury("invests",id);DB.invests=DB.invests.filter(v=>v.id!==id);save();renderMoney();toast("Holding removed")}
 
 function renderMoney(){
   const host=document.getElementById("moKpi"); if(!host)return;
@@ -6216,6 +6416,234 @@ function renderDecay(){
   <div class="mini" style="margin-top:10px">Why halves and not a trend line: a trend line will always find a slope, even in noise. Splitting the record in two and asking whether the halves could have come from the same trader is the harder question, and the only one worth acting on.</div>`;
 }
 
+/* ============================================================
+   SYNC — every device holds the same journal
+
+   The journal lives in one private gist in the trader's own GitHub
+   account. Not mine, not a server of mine: the privacy promise holds,
+   because nothing passes through anything I run.
+
+   The rule that matters: a sync MERGES, it never overwrites. Two
+   devices used on the same day must end up holding the union of both,
+   not whichever one happened to save last. Deletions travel as their
+   own small record, so removing a trade on one device removes it on
+   the other instead of it quietly coming back.
+   ============================================================ */
+const GIST_FILE="trading-journal.json";
+const TOKEN_KEY="tj_sync_token";          // kept out of CFG so it never rides along in an exported setup
+const SYNCED=["trades","boxes","money","invests"];
+let CLOUDING=false, CLOUD_TIMER=null;
+
+const tokenGet=()=>{try{return localStorage.getItem(TOKEN_KEY)||""}catch(e){return ""}};
+const tokenSet=v=>{try{v?localStorage.setItem(TOKEN_KEY,v):localStorage.removeItem(TOKEN_KEY)}catch(e){}};
+const cloudCfg=()=>{CFG.cloud=CFG.cloud||{gistId:"",auto:true,last:0,lastNote:""};return CFG.cloud};
+const deviceName=()=>{
+  const u=navigator.userAgent||"";
+  const os=/iPhone/.test(u)?"iPhone":/iPad/.test(u)?"iPad":/Android/.test(u)?"Android"
+          :/Mac/.test(u)?"Mac":/Windows/.test(u)?"Windows":"this device";
+  const br=/CriOS|Chrome/.test(u)?"Chrome":/Firefox/.test(u)?"Firefox":/Safari/.test(u)?"Safari":"browser";
+  return os+" · "+br;
+};
+/* every record carries when it was last touched, so a conflict has an answer */
+const stamp=r=>{if(r&&typeof r==="object"&&!r.m)r.m=Date.now();return r};
+function touchAll(){SYNCED.forEach(k=>(DB[k]||[]).forEach(stamp))}
+function bury(kind,id){
+  if(!Array.isArray(DB.gone))DB.gone=[];
+  DB.gone.push({k:kind,id:String(id),t:Date.now()});
+  if(DB.gone.length>4000)DB.gone=DB.gone.slice(-4000);
+}
+
+/* ---- the merge ---- */
+function mergeLists(mine,theirs,gone){
+  const dead={};
+  (gone||[]).forEach(g=>{const k=String(g.id);if(!dead[k]||dead[k]<g.t)dead[k]=g.t});
+  const out={}, take=r=>{
+    if(!r||typeof r!=="object"||r.id===undefined||r.id===null)return;
+    const k=String(r.id), m=+r.m||0;
+    if(dead[k]!==undefined&&dead[k]>=m)return;            // deleted after it was last edited
+    if(!out[k]||(+out[k].m||0)<m)out[k]=r;                 // the more recent edit wins
+  };
+  (mine||[]).forEach(take); (theirs||[]).forEach(take);
+  return Object.values(out);
+}
+function mergeDB(remote){
+  const r=(remote&&remote.data)||{};
+  const gone=mergeGone(DB.gone,r.gone);
+  const before={};SYNCED.forEach(k=>before[k]=(DB[k]||[]).length);
+  SYNCED.forEach(k=>{DB[k]=mergeLists(DB[k],r[k],gone)});
+  DB.gone=gone;
+  DB.trades.sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  /* settings are one object, not a list, so the side touched last simply wins */
+  const mineT=+((CFG.cloud||{}).cfgTouched)||0, theirT=+((r.cfg&&r.cfg.cloud&&r.cfg.cloud.cfgTouched))||0;
+  if(r.cfg&&theirT>mineT){
+    const keepToken=tokenGet(), keepGist=cloudCfg().gistId;
+    CFG=migrate(r.cfg); cloudCfg().gistId=keepGist; tokenSet(keepToken);
+  }
+  ["checks","map"].forEach(k=>{if(r[k]&&typeof r[k]==="object")DB[k]=Object.assign({},r[k],DB[k])});
+  if(!DB.cutoff&&r.cutoff)DB.cutoff=r.cutoff;
+  const added={};SYNCED.forEach(k=>added[k]=(DB[k]||[]).length-before[k]);
+  return added;
+}
+function mergeGone(a,b){
+  const seen={};
+  [].concat(a||[],b||[]).forEach(g=>{
+    if(!g||g.id===undefined)return;
+    const k=g.k+"|"+g.id;
+    if(!seen[k]||seen[k].t<g.t)seen[k]=g;
+  });
+  return Object.values(seen);
+}
+function cloudPack(){
+  touchAll();
+  cloudCfg();
+  return {format:"matin-journal-sync",version:1,app:APP_VERSION,
+    saved:new Date().toISOString(),device:deviceName(),
+    data:{trades:DB.trades,boxes:DB.boxes,money:DB.money,invests:DB.invests,
+          checks:DB.checks,map:DB.map,cutoff:DB.cutoff||"",gone:DB.gone||[],cfg:CFG}};
+}
+
+/* ---- talking to GitHub ---- */
+async function gh(path,opts){
+  const tok=tokenGet(); if(!tok)throw new Error("No token saved yet.");
+  const r=await fetch("https://api.github.com"+path,Object.assign({
+    headers:{Authorization:"Bearer "+tok,Accept:"application/vnd.github+json",
+             "X-GitHub-Api-Version":"2022-11-28"}},opts||{}));
+  if(r.status===401)throw new Error("GitHub refused that token. It may be wrong, expired, or missing the Gists permission.");
+  if(r.status===403)throw new Error("GitHub refused the request. If you have been syncing very often, wait a minute and try again.");
+  if(r.status===404)throw new Error("That gist no longer exists. Disconnect and connect again to make a new one.");
+  if(!r.ok)throw new Error("GitHub answered "+r.status+".");
+  return r.json();
+}
+async function cloudConnect(){
+  const box=document.getElementById("cloudNote");
+  const tok=(document.getElementById("cl_token")||{}).value.trim();
+  if(!tok)return cloudSay("Paste the token first.","bad");
+  tokenSet(tok);
+  try{
+    cloudSay("Checking the token…");
+    const me=await gh("/user");
+    let id=cloudCfg().gistId;
+    if(!id){
+      cloudSay("Looking for a journal already in your account…");
+      const list=await gh("/gists?per_page=100");
+      const found=(list||[]).find(g=>g.files&&g.files[GIST_FILE]);
+      if(found)id=found.id;
+    }
+    if(!id){
+      cloudSay("Making a private gist for your journal…");
+      const made=await gh("/gists",{method:"POST",body:JSON.stringify({
+        description:"Trading Journal — private sync (Matin Projects)",public:false,
+        files:{[GIST_FILE]:{content:JSON.stringify(cloudPack())}}})});
+      id=made.id;
+    }
+    cloudCfg().gistId=id; save();
+    await cloudSync(true);
+    cloudSay(`Connected as <b>${esc(me.login)}</b>. Your journal now travels with you.`,"ok");
+  }catch(e){ cloudSay(esc(e.message),"bad") }
+  render();
+}
+async function cloudSync(quiet){
+  const C=cloudCfg();
+  if(!tokenGet()||!C.gistId){if(!quiet)cloudSay("Connect to GitHub first.","bad");return false}
+  if(CLOUDING)return false;
+  CLOUDING=true;
+  const rollback=JSON.stringify(DB);
+  try{
+    if(!quiet)cloudSay("Reading what your other devices have saved…");
+    const g=await gh("/gists/"+C.gistId);
+    const f=(g.files||{})[GIST_FILE];
+    let remote=null;
+    if(f){
+      let txt=f.content;
+      if(f.truncated&&f.raw_url){const rr=await fetch(f.raw_url);txt=await rr.text()}
+      try{remote=JSON.parse(txt)}catch(e){throw new Error("The copy in your gist is damaged and could not be read. Nothing here was changed.")}
+    }
+    const added=remote?mergeDB(remote):{};
+    save();
+    if(!quiet)cloudSay("Sending your changes back…");
+    await gh("/gists/"+C.gistId,{method:"PATCH",body:JSON.stringify({
+      files:{[GIST_FILE]:{content:JSON.stringify(cloudPack())}}})});
+    C.last=Date.now();
+    const gained=SYNCED.reduce((n,k)=>n+Math.max(0,added[k]||0),0);
+    C.lastNote=gained?`brought in ${gained} record${gained===1?"":"s"} from your other devices`:"already matched";
+    save(); render();
+    cloudSay(`Up to date — ${C.lastNote}. ${DB.trades.length} trades here.`,"ok");
+    return true;
+  }catch(e){
+    try{DB=JSON.parse(rollback);save()}catch(_){}
+    cloudSay(esc(e.message)+" Nothing on this device was changed.","bad");
+    return false;
+  }finally{ CLOUDING=false }
+}
+function renderCloud(){
+  const host=document.getElementById("cloudBody"); if(!host)return;
+  const C=cloudCfg(), on=!!(tokenGet()&&C.gistId);
+  const tail=document.getElementById("clTail");
+  if(tail)tail.textContent=on?("last synced "+cloudAgo()):"not set up";
+  if(on){
+    host.innerHTML=`
+      <div class="facts" style="margin-bottom:14px">
+        <div><div class="l">Status</div><div class="v pos" style="font-size:13px">Connected</div></div>
+        <div><div class="l">Last synced</div><div class="v" style="font-size:12.5px">${cloudAgo()}</div></div>
+        <div><div class="l">Trades here</div><div class="v">${DB.trades.length}</div></div>
+        <div><div class="l">This device</div><div class="v" style="font-size:11px">${esc(deviceName())}</div></div>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="cloudSync()">Sync now</button>
+        <label class="row" style="gap:7px;align-items:center;margin:0 0 0 4px;cursor:pointer">
+          <input type="checkbox" ${C.auto?"checked":""} onchange="cloudAuto(this.checked)"> 
+          <span class="mini">Sync by itself when something changes</span></label>
+        <button class="btn danger sec" style="margin-left:auto" onclick="cloudOff()">Disconnect</button>
+      </div>
+      <div class="mini" style="margin-top:9px">Your journal lives in gist <span class="mono">${esc(String(C.gistId).slice(0,8))}…</span> —
+        <a href="https://gist.github.com/${esc(C.gistId)}" target="_blank" rel="noopener">open it on GitHub</a>.
+        ${C.lastNote?`Last time it ${esc(C.lastNote)}.`:""}</div>`;
+    return;
+  }
+  host.innerHTML=`
+    <div class="calib">
+      <div class="sec-t">Step 1 — make a token on GitHub</div>
+      <div class="mini" style="margin:4px 0 10px">
+        Open <a href="https://github.com/settings/tokens/new?scopes=gist&description=Trading%20Journal%20sync" target="_blank" rel="noopener">this page</a> —
+        it arrives with the right box already ticked. Set <b>Expiration</b> to <b>No expiration</b>, scroll down,
+        press <b>Generate token</b>, and copy what it shows you. GitHub shows it once and never again.
+        <br><br>The only thing this token can do is read and write your gists. It cannot touch your repositories,
+        and it is stored on this device alone — it is deliberately left out of every backup and setup file you export,
+        so sharing those never shares your token.
+      </div>
+      <div class="sec-t">Step 2 — paste it here</div>
+      <div class="grid g2" style="margin-top:8px">
+        <div><label>Your token</label>
+          <input type="password" id="cl_token" placeholder="ghp_…" autocomplete="off" spellcheck="false"></div>
+        <div style="align-self:end"><button class="btn" style="width:100%" onclick="cloudConnect()">Connect</button></div>
+      </div>
+      <div class="mini" style="margin-top:10px">On your second device, open the journal, come back to this card and paste the <b>same</b> token. It finds the journal already in your account by itself — there is no second thing to copy across.</div>
+    </div>`;
+}
+function cloudSay(html,kind){
+  const n=document.getElementById("cloudNote"); if(!n)return;
+  n.innerHTML=`<div class="note ${kind==="ok"?"ok":kind==="bad"?"warn":""}" style="margin:14px 0 0">
+    <span class="ic">${kind==="ok"?"✓":kind==="bad"?"!":"…"}</span><div>${html}</div></div>`;
+}
+function cloudOff(){
+  if(!confirm("Stop syncing this device?\n\nYour journal stays here and the copy in your GitHub account stays there. Nothing is deleted."))return;
+  tokenSet(""); cloudCfg().gistId=""; cloudCfg().last=0; save(); render();
+  cloudSay("Disconnected. This device no longer reads or writes your gist.","ok");
+}
+function cloudAuto(on){ cloudCfg().auto=!!on; save(); toast(on?"Will sync by itself":"Automatic sync off") }
+/* a change here should reach the other device without being asked twice */
+function cloudSoon(){
+  const C=cloudCfg();
+  if(!C.auto||!tokenGet()||!C.gistId)return;
+  clearTimeout(CLOUD_TIMER);
+  CLOUD_TIMER=setTimeout(()=>cloudSync(true),4000);
+}
+const cloudAgo=()=>{
+  const t=+cloudCfg().last||0; if(!t)return "never";
+  const m=Math.round((Date.now()-t)/60000);
+  return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+"h ago":Math.round(m/1440)+"d ago";
+};
+
 /* a compact, anonymous brief the trader can paste into any AI */
 function briefText(){
   const tr=filtered(), D=diagnose(tr), S=D.S, M=MIN();
@@ -6993,7 +7421,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.2";
+const APP_VERSION="1.0.0-beta.3";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 
@@ -7101,6 +7529,15 @@ CUR=DB.trades.length?3:0;
 document.querySelectorAll(".page").forEach((p,j)=>p.classList.toggle("on",j===CUR));
 document.querySelectorAll("#nav button")[CUR].classList.add("on");
 render();save();          // persist the migrated config on first load
+
+/* A device left closed for a day is behind. Catch it up before he starts
+   working, quietly, and never let a failure stop the journal from opening. */
+setTimeout(()=>{
+  try{
+    const C=(CFG.cloud||{});
+    if(C.auto!==false&&tokenGet()&&C.gistId&&navigator.onLine!==false)cloudSync(true);
+  }catch(e){}
+},1200);
 syncMobileNav();
 window.addEventListener("load",movePill);
 setTimeout(movePill,120);

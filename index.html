@@ -1837,7 +1837,20 @@ function migrate(saved){
   if(typeof saved.risk==="number")out.risk.def=saved.risk;
   return out;
 }
+/* A settings change is stamped so the other device knows which copy is newer. The first
+   save after loading only records where things stand — a fresh device's defaults must
+   never look newer than the real settings waiting in the gist. */
+var CFG_FP=null;
+function cfgFP(){try{const c=JSON.parse(JSON.stringify(CFG||{}));delete c.cloud;return JSON.stringify(c)}catch(e){return ""}}
 const save=()=>{DB.cfg=CFG;
+  if(CFG){
+    const fp=cfgFP();
+    if(CFG_FP===null)CFG_FP=fp;
+    else if(fp!==CFG_FP){
+      CFG_FP=fp;
+      if(!CLOUD_QUIET){CFG.cloud=CFG.cloud||{};CFG.cloud.cfgTouched=Date.now()}
+    }
+  }
   if(typeof cloudSoon==="function")cloudSoon();
   try{localStorage.setItem("tj_v1",JSON.stringify(DB))}
   catch(e){
@@ -6433,6 +6446,18 @@ const GIST_FILE="trading-journal.json";
 const TOKEN_KEY="tj_sync_token";          // kept out of CFG so it never rides along in an exported setup
 const SYNCED=["trades","boxes","money","invests"];
 let CLOUDING=false, CLOUD_TIMER=null;
+/* CLOUD_QUIET is up while a sync is itself saving. Without it, the sync's own save()
+   scheduled another sync, which saved, which scheduled another — every open tab wrote
+   to GitHub every four seconds, forever, until GitHub refused. */
+var CLOUD_QUIET=false, CLOUD_PAUSE_UNTIL=0, CLOUD_SIG="";
+/* a fingerprint of exactly what would be sent, so nothing is sent twice */
+function cloudSig(){
+  const d=[DB.trades,DB.boxes,DB.money,DB.invests,DB.checks,DB.map,DB.cutoff,DB.gone,
+           (()=>{const c=JSON.parse(JSON.stringify(CFG||{}));delete c.cloud;return c})()];
+  const s=JSON.stringify(d); let h=0;
+  for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0}
+  return s.length+":"+h;
+}
 
 const tokenGet=()=>{try{return localStorage.getItem(TOKEN_KEY)||""}catch(e){return ""}};
 const tokenSet=v=>{try{v?localStorage.setItem(TOKEN_KEY,v):localStorage.removeItem(TOKEN_KEY)}catch(e){}};
@@ -6476,8 +6501,12 @@ function mergeDB(remote){
   /* settings are one object, not a list, so the side touched last simply wins */
   const mineT=+((CFG.cloud||{}).cfgTouched)||0, theirT=+((r.cfg&&r.cfg.cloud&&r.cfg.cloud.cfgTouched))||0;
   if(r.cfg&&theirT>mineT){
-    const keepToken=tokenGet(), keepGist=cloudCfg().gistId;
-    CFG=migrate(r.cfg); cloudCfg().gistId=keepGist; tokenSet(keepToken);
+    const keep=Object.assign({},CFG.cloud||{}), keepToken=tokenGet();
+    CFG=migrate(r.cfg);
+    CFG.cloud=Object.assign(keep,{cfgTouched:theirT});
+    tokenSet(keepToken);
+    DB.trades.forEach(t=>t.session=sess(t.time));        // his windows arrived with the settings
+    CFG_FP=cfgFP();
   }
   ["checks","map"].forEach(k=>{if(r[k]&&typeof r[k]==="object")DB[k]=Object.assign({},r[k],DB[k])});
   if(!DB.cutoff&&r.cutoff)DB.cutoff=r.cutoff;
@@ -6492,6 +6521,30 @@ function mergeGone(a,b){
     if(!seen[k]||seen[k].t<g.t)seen[k]=g;
   });
   return Object.values(seen);
+}
+/* Does this device hold anything the gist lacks? If not, writing back is just an echo. */
+function localAhead(remote){
+  if(!remote||!remote.data)return true;
+  const r=remote.data;
+  for(const k of SYNCED){
+    const theirs={};
+    (r[k]||[]).forEach(x=>{if(x&&x.id!==undefined)theirs[String(x.id)]=+x.m||0});
+    for(const x of (DB[k]||[])){
+      if(!x||x.id===undefined)continue;
+      const t=theirs[String(x.id)];
+      if(t===undefined||(+x.m||0)>t)return true;
+    }
+  }
+  const g={}; (r.gone||[]).forEach(x=>{if(x)g[x.k+"|"+x.id]=1});
+  if((DB.gone||[]).some(x=>x&&!g[x.k+"|"+x.id]))return true;
+  const mine=+((CFG.cloud||{}).cfgTouched)||0, theirs=+((r.cfg&&r.cfg.cloud&&r.cfg.cloud.cfgTouched))||0;
+  if(mine>theirs)return true;
+  for(const k of ["checks","map"]){
+    const a=DB[k]||{}, b=r[k]||{};
+    if(Object.keys(a).some(x=>!(x in b)))return true;
+  }
+  if(DB.cutoff&&!r.cutoff)return true;
+  return false;
 }
 function cloudPack(){
   touchAll();
@@ -6508,11 +6561,21 @@ async function gh(path,opts){
   const r=await fetch("https://api.github.com"+path,Object.assign({
     headers:{Authorization:"Bearer "+tok,Accept:"application/vnd.github+json",
              "X-GitHub-Api-Version":"2022-11-28"}},opts||{}));
-  if(r.status===401)throw new Error("GitHub refused that token. It may be wrong, expired, or missing the Gists permission.");
-  if(r.status===403)throw new Error("GitHub refused the request. If you have been syncing very often, wait a minute and try again.");
-  if(r.status===404)throw new Error("That gist no longer exists. Disconnect and connect again to make a new one.");
-  if(!r.ok)throw new Error("GitHub answered "+r.status+".");
-  return r.json();
+  if(r.ok)return r.json();
+  let why=""; try{why=((await r.json())||{}).message||""}catch(e){}
+  const fail=(msg,pause)=>{const e=new Error(msg);if(pause)e.pause=pause;throw e};
+  if(r.status===401)fail("GitHub refused that token. It may be wrong, expired, or missing the Gists permission.");
+  if(r.status===403||r.status===429){
+    const left=r.headers&&r.headers.get?r.headers.get("x-ratelimit-remaining"):null;
+    const reset=r.headers&&r.headers.get?+r.headers.get("x-ratelimit-reset"):0;
+    if(left==="0"||/rate limit/i.test(why)){
+      const mins=reset?Math.max(1,Math.ceil((reset*1000-Date.now())/60000)):5;
+      fail(`GitHub has asked this device to slow down for about ${mins} minute${mins===1?"":"s"}. Automatic sync is paused until then; your journal is safe here.`, mins*60000);
+    }
+    fail("GitHub refused the request"+(why?` (“${why}”)`:"")+". If you are on a VPN, try with it switched off — or on.", 5*60000);
+  }
+  if(r.status===404)fail("That gist no longer exists. Disconnect and connect again to make a new one.");
+  fail("GitHub answered "+r.status+(why?` (“${why}”)`:"")+".");
 }
 async function cloudConnect(){
   const box=document.getElementById("cloudNote");
@@ -6546,23 +6609,28 @@ async function cloudSync(quiet){
   const C=cloudCfg();
   if(!tokenGet()||!C.gistId){if(!quiet)cloudSay("Connect to GitHub first.","bad");return false}
   if(CLOUDING)return false;
-  CLOUDING=true;
+  if(quiet&&Date.now()<CLOUD_PAUSE_UNTIL)return false;
+  CLOUDING=true; CLOUD_QUIET=true;
   const rollback=JSON.stringify(DB);
   try{
     if(!quiet)cloudSay("Reading what your other devices have saved…");
     const g=await gh("/gists/"+C.gistId);
     const f=(g.files||{})[GIST_FILE];
-    let remote=null;
+    let remote=null, remoteTxt="";
     if(f){
-      let txt=f.content;
-      if(f.truncated&&f.raw_url){const rr=await fetch(f.raw_url);txt=await rr.text()}
-      try{remote=JSON.parse(txt)}catch(e){throw new Error("The copy in your gist is damaged and could not be read. Nothing here was changed.")}
+      remoteTxt=f.content||"";
+      if(f.truncated&&f.raw_url){const rr=await fetch(f.raw_url);remoteTxt=await rr.text()}
+      try{remote=JSON.parse(remoteTxt)}catch(e){throw new Error("The copy in your gist is damaged and could not be read. Nothing here was changed.")}
     }
+    touchAll();                                     // stamp first, so "ahead" is judged fairly
+    const ahead=localAhead(remote);                 // judged BEFORE merging, on what was here
     const added=remote?mergeDB(remote):{};
     save();
-    if(!quiet)cloudSay("Sending your changes back…");
-    await gh("/gists/"+C.gistId,{method:"PATCH",body:JSON.stringify({
-      files:{[GIST_FILE]:{content:JSON.stringify(cloudPack())}}})});
+    if(ahead){
+      if(!quiet)cloudSay("Sending your changes back…");
+      await gh("/gists/"+C.gistId,{method:"PATCH",body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(cloudPack())}}})});
+    }
+    CLOUD_SIG=cloudSig();
     C.last=Date.now();
     const gained=SYNCED.reduce((n,k)=>n+Math.max(0,added[k]||0),0);
     C.lastNote=gained?`brought in ${gained} record${gained===1?"":"s"} from your other devices`:"already matched";
@@ -6571,9 +6639,10 @@ async function cloudSync(quiet){
     return true;
   }catch(e){
     try{DB=JSON.parse(rollback);save()}catch(_){}
+    if(e&&e.pause)CLOUD_PAUSE_UNTIL=Date.now()+e.pause;
     cloudSay(esc(e.message)+" Nothing on this device was changed.","bad");
     return false;
-  }finally{ CLOUDING=false }
+  }finally{ CLOUDING=false; CLOUD_QUIET=false }
 }
 function renderCloud(){
   const host=document.getElementById("cloudBody"); if(!host)return;
@@ -6589,7 +6658,7 @@ function renderCloud(){
         <div><div class="l">This device</div><div class="v" style="font-size:11px">${esc(deviceName())}</div></div>
       </div>
       <div class="row">
-        <button class="btn" onclick="cloudSync()">Sync now</button>
+        <button class="btn" onclick="CLOUD_PAUSE_UNTIL=0;cloudSync()">Sync now</button>
         <label class="row" style="gap:7px;align-items:center;margin:0 0 0 4px;cursor:pointer">
           <input type="checkbox" ${C.auto?"checked":""} onchange="cloudAuto(this.checked)"> 
           <span class="mini">Sync by itself when something changes</span></label>
@@ -6633,8 +6702,11 @@ function cloudOff(){
 function cloudAuto(on){ cloudCfg().auto=!!on; save(); toast(on?"Will sync by itself":"Automatic sync off") }
 /* a change here should reach the other device without being asked twice */
 function cloudSoon(){
+  if(CLOUD_QUIET||CLOUDING)return;                     // the sync is saving its own result
   const C=cloudCfg();
   if(!C.auto||!tokenGet()||!C.gistId)return;
+  if(Date.now()<CLOUD_PAUSE_UNTIL)return;              // GitHub asked us to wait
+  if(CLOUD_SIG&&cloudSig()===CLOUD_SIG)return;         // nothing he did has changed anything
   clearTimeout(CLOUD_TIMER);
   CLOUD_TIMER=setTimeout(()=>cloudSync(true),4000);
 }
@@ -7421,7 +7493,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.3";
+const APP_VERSION="1.0.0-beta.4";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

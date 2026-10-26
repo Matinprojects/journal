@@ -420,11 +420,12 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
   background:var(--grad-gold);color:#120E06;border:none;padding:13px 20px;border-radius:99px;cursor:pointer;
   font-family:inherit;font-size:13.5px;font-weight:800;letter-spacing:-.01em;
   box-shadow:0 16px 40px -12px rgba(212,175,55,.75);transition:transform .3s var(--ease-out),box-shadow .3s}
-.gatebtn:hover{transform:translateY(-3px);box-shadow:0 22px 52px -12px rgba(212,175,55,.9)}
+.gatebtn:hover{filter:brightness(1.08);box-shadow:0 22px 52px -12px rgba(212,175,55,.9)}
 .gatebtn.stop{background:linear-gradient(135deg,#F5716C,#C6312C);color:#fff;box-shadow:0 16px 40px -12px rgba(240,84,79,.75)}
 .gatebtn .pin{width:8px;height:8px;border-radius:50%;background:#120E06;opacity:.55;animation:beat 2.4s ease-in-out infinite}
 .gatebtn.stop .pin{background:#fff}
-@keyframes beat{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.5);opacity:1}}
+@keyframes beat{0%,100%{opacity:.45}50%{opacity:.95}}
+@media (prefers-reduced-motion:reduce){.gatebtn .pin{animation:none}}
 .ovl{position:fixed;inset:0;z-index:100;display:none;align-items:flex-start;justify-content:center;padding:34px 18px;
   background:rgba(6,5,5,.78);backdrop-filter:blur(9px);overflow-y:auto}
 .ovl.on{display:flex;animation:fade .32s var(--ease-out)}
@@ -7493,7 +7494,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.4";
+const APP_VERSION="1.0.0-beta.5";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

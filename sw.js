@@ -11,7 +11,7 @@
    activate, so testers get the new version on their next visit.
    ============================================================ */
 
-const CACHE = "tj-v1.0.0-beta.4";
+const CACHE = "tj-v1.0.0-beta.5";
 
 const SHELL = [
   "./",
@@ -53,7 +53,9 @@ self.addEventListener("fetch", e => {
   // falling back to the cached app when there is no connection.
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req)
+      // no-cache: always ask the server whether the page changed (a cheap 304 when it
+      // has not), instead of trusting a browser copy that can be ten minutes stale
+      fetch(req, { cache: "no-cache" })
         .then(res => {
           const copy = res.clone();
           caches.open(CACHE).then(c => c.put("./index.html", copy)).catch(() => {});

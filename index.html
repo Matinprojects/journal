@@ -1844,6 +1844,7 @@ function migrate(saved){
 var CFG_FP=null;
 function cfgFP(){try{const c=JSON.parse(JSON.stringify(CFG||{}));delete c.cloud;return JSON.stringify(c)}catch(e){return ""}}
 const save=()=>{DB.cfg=CFG;
+  try{stampEdits()}catch(e){}
   if(CFG){
     const fp=cfgFP();
     if(CFG_FP===null)CFG_FP=fp;
@@ -6473,6 +6474,41 @@ const deviceName=()=>{
 /* every record carries when it was last touched, so a conflict has an answer */
 const stamp=r=>{if(r&&typeof r==="object"&&!r.m)r.m=Date.now();return r};
 function touchAll(){SYNCED.forEach(k=>(DB[k]||[]).forEach(stamp))}
+/* The bug this fixes: a record got its timestamp once, when it was created, and never
+   again. Tag a trade on one Mac and its timestamp stayed the same as the untagged copy
+   on the other, so neither side ever counted as newer and the tags never travelled.
+   Now every save compares each record with how it looked last time; if it changed,
+   it is stamped as edited now. */
+function stableStr(v){
+  if(v===null||typeof v!=="object")return JSON.stringify(v===undefined?null:v);
+  if(Array.isArray(v))return "["+v.map(stableStr).join(",")+"]";
+  return "{"+Object.keys(v).filter(k=>k!=="m"&&k!=="h").sort()
+    .map(k=>JSON.stringify(k)+":"+stableStr(v[k])).join(",")+"}";
+}
+function recHash(r){const s=stableStr(r);let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return s.length+"."+h}
+function stampEdits(){
+  if(typeof SYNCED==="undefined")return;
+  const now=Date.now();
+  SYNCED.forEach(k=>(DB[k]||[]).forEach(r=>{
+    if(!r||typeof r!=="object")return;
+    const h=recHash(r);
+    if(r.h===undefined){r.h=h;return}            // first look: learn it, claim nothing
+    if(r.h!==h){
+      r.h=h;
+      if(!CLOUD_QUIET)r.m=now;                   // his edit — not the sync settling in
+    }
+  }));
+}
+/* When two copies carry the same timestamp — the situation the old bug left behind —
+   keep the one with more of his work in it rather than whichever happened to be first. */
+function richness(r){
+  if(!r||typeof r!=="object")return 0;
+  let n=0;
+  ["strat","grade","emo","adh","broke","review","exitreason","mfe","mae","shot"].forEach(k=>{
+    const v=r[k]; if(v!==undefined&&v!==null&&v!==""&&v!==0)n++});
+  if(r.cf&&typeof r.cf==="object")n+=Object.values(r.cf).filter(Boolean).length;
+  return n;
+}
 function bury(kind,id){
   if(!Array.isArray(DB.gone))DB.gone=[];
   DB.gone.push({k:kind,id:String(id),t:Date.now()});
@@ -6487,7 +6523,12 @@ function mergeLists(mine,theirs,gone){
     if(!r||typeof r!=="object"||r.id===undefined||r.id===null)return;
     const k=String(r.id), m=+r.m||0;
     if(dead[k]!==undefined&&dead[k]>=m)return;            // deleted after it was last edited
-    if(!out[k]||(+out[k].m||0)<m)out[k]=r;                 // the more recent edit wins
+    if(!out[k])out[k]=r;
+    else{
+      const om=+out[k].m||0;
+      if(om<m)out[k]=r;                                    // the more recent edit wins
+      else if(om===m&&richness(r)>richness(out[k]))out[k]=r; // a tie goes to the fuller copy
+    }
   };
   (mine||[]).forEach(take); (theirs||[]).forEach(take);
   return Object.values(out);
@@ -6529,11 +6570,14 @@ function localAhead(remote){
   const r=remote.data;
   for(const k of SYNCED){
     const theirs={};
-    (r[k]||[]).forEach(x=>{if(x&&x.id!==undefined)theirs[String(x.id)]=+x.m||0});
+    (r[k]||[]).forEach(x=>{if(x&&x.id!==undefined)theirs[String(x.id)]=x});
     for(const x of (DB[k]||[])){
       if(!x||x.id===undefined)continue;
       const t=theirs[String(x.id)];
-      if(t===undefined||(+x.m||0)>t)return true;
+      if(!t)return true;
+      const xm=+x.m||0, tm=+t.m||0;
+      if(xm>tm)return true;
+      if(xm===tm&&richness(x)>richness(t))return true;
     }
   }
   const g={}; (r.gone||[]).forEach(x=>{if(x)g[x.k+"|"+x.id]=1});
@@ -7494,7 +7538,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.5";
+const APP_VERSION="1.0.0-beta.6";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

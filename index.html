@@ -343,6 +343,61 @@ tbody tr:hover{background:rgba(212,175,55,.045)}
 .facts div:hover{border-color:var(--line)}
 .facts .l{font-size:9.5px;color:var(--dim);letter-spacing:.07em;text-transform:uppercase}
 .facts .v{font-size:15px;font-weight:700;margin-top:3px;font-family:"JetBrains Mono",monospace}
+.bxrep{position:fixed;inset:0;z-index:90;background:rgba(6,5,4,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  overflow-y:auto;opacity:0;pointer-events:none;transition:opacity .25s}
+.bxrep.on{opacity:1;pointer-events:auto}
+body.noscroll{overflow:hidden}
+.bxrep-in{max-width:1120px;margin:28px auto 60px;padding:28px 30px;border-radius:22px;background:var(--card,#141210);
+  border:1px solid var(--line2);box-shadow:0 40px 120px -30px rgba(0,0,0,.8);animation:rise .4s var(--ease-out)}
+.bxrep-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:22px;
+  position:sticky;top:-28px;padding:14px 0 12px;background:inherit;z-index:2}
+.bxrep-top h1{font-size:26px;margin:4px 0 6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.kpgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.kp{padding:13px 14px;border-radius:14px;background:rgba(10,9,8,.55);border:1px solid var(--line2)}
+.kp .l{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.kp .v{font-family:"JetBrains Mono",monospace;font-size:19px;font-weight:700;margin-top:4px}
+.kp .s{font-size:11px;color:var(--dim);margin-top:3px}
+.bxsec{margin-top:26px}
+.bxsec>.st{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);
+  display:flex;justify-content:space-between;gap:10px;margin-bottom:12px}
+.bxsec>.st span{color:var(--dim);letter-spacing:.04em;text-transform:none;font-weight:500}
+.eqwrap{border-radius:14px;background:rgba(255,255,255,.02);border:1px solid var(--line2);padding:12px}
+.eqwrap .eq{width:100%;height:190px;display:block}
+.eqwrap .dd{width:100%;height:46px;display:block;margin-top:4px}
+.eqlab{display:flex;justify-content:space-between;margin-top:6px}
+.bdgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.bdt{padding:12px 14px;border-radius:14px;background:rgba(10,9,8,.45);border:1px solid var(--line2)}
+.bdt .st{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.bdt tr.thin td{opacity:.5}
+.bdt tr.best td:first-child{color:#5FE0A6}.bdt tr.worst td:first-child{color:#F5716C}
+.bdbar{height:6px;border-radius:9px;background:rgba(255,255,255,.04);overflow:hidden}
+.bdbar i{display:block;height:100%;border-radius:9px}.bdbar i.p{background:#3FCF8E}.bdbar i.n{background:#F0544F}
+table.cmp td:first-child{color:var(--txt2)}
+.lesson{padding:14px 16px;border-radius:14px;margin-bottom:10px;border:1px solid var(--line2);background:rgba(10,9,8,.45)}
+.lesson.bad{border-color:rgba(240,84,79,.28)}.lesson.good{border-color:rgba(63,207,142,.28)}
+.lesson.warn{border-color:rgba(232,163,61,.28)}.lesson.own{border-style:dashed}
+.lesson .lh{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.lesson .lh small{color:var(--dim);font-weight:500}
+.lesson p{margin:8px 0;color:var(--txt2);font-size:13px;line-height:1.55}
+.lesson .lm{margin-top:6px;font-family:"JetBrains Mono",monospace}
+.lessonpin{border-color:rgba(212,175,55,.35)!important}
+.pinrow{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line2)}
+.pinrow:first-of-type{border-top:0}
+.pinrow .vd{flex:none;margin-top:2px}
+.gpromise{margin-top:16px;padding-top:12px;border-top:1px solid var(--line2)}
+#bxReview{width:100%;min-height:110px}
+@media (max-width:760px){
+  .bxrep-in{margin:0;border-radius:0;padding:18px 16px 90px;min-height:100%}
+  .bxrep-top{top:-18px}.bxrep-top h1{font-size:21px}
+  .kpgrid{grid-template-columns:repeat(2,1fr)}
+  .bdgrid{grid-template-columns:1fr}
+}
+@media print{
+  body>*:not(#bxRep){display:none!important}
+  .bxrep{position:static;background:none;backdrop-filter:none;overflow:visible}
+  .bxrep-in{box-shadow:none;margin:0;max-width:none}
+  .bxrep-top .row{display:none}
+}
 .runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
@@ -1755,7 +1810,7 @@ const keyFor=i=>KEYS[i]||"";
    STATE
    ============================================================ */
 let DB={trades:[],sessions:[],checks:{},rules:[],map:{},cfg:null,seen:false,boxes:[],
-        money:[],invests:[],sync:null,lock:null,cutoff:"",gone:[]};
+        money:[],invests:[],sync:null,lock:null,cutoff:"",gone:[],wiped:{}};
 /* Some browsers refuse storage entirely to a page opened straight from a file.
    Silently losing every trade is the worst possible failure here, so find out now. */
 let STORE_OK=true, STORE_WHY="";
@@ -1772,6 +1827,10 @@ try{const s=localStorage.getItem("tj_v1");if(s)DB=Object.assign(DB,JSON.parse(s)
   const obj=k=>{if(!DB[k]||typeof DB[k]!=="object"||Array.isArray(DB[k])){DB[k]={};LOAD_REPAIRED++}};
   ["trades","sessions","rules","boxes","money","invests"].forEach(arr);
   if(!Array.isArray(DB.gone))DB.gone=[];     // new in this version; absence is not damage
+  if(!DB.wiped||typeof DB.wiped!=="object"||Array.isArray(DB.wiped))DB.wiped={};
+  DB.sessions=DB.sessions.filter(x=>x&&typeof x==="object"&&x.date);
+  DB.sessions.forEach(x=>{if(!x.id)x.id="d:"+x.date});
+  DB.rules=DB.rules.filter(x=>typeof x==="string"&&x.trim());
   ["checks","map"].forEach(obj);
   if(typeof DB.cutoff!=="string"){DB.cutoff="";LOAD_REPAIRED++}
   // drop anything in the trade list that is not a usable trade
@@ -1925,7 +1984,8 @@ const avg=a=>a.length?sum(a)/a.length:0;
 const isTagged=t=>!!(t.strat&&t.emo&&t.adh);
 const untagged=()=>DB.trades.filter(t=>!isTagged(t));
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const jsq=s=>String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+const jsq=s=>String(s==null?"":s).replace(/[\\'"&<>\n\r\u2028\u2029]/g,c=>({"\\":"\\\\","'":"\\'",'"':"\\x22",
+  "&":"\\x26","<":"\\x3C",">":"\\x3E","\n":"\\n","\r":"\\r","\u2028":"\\u2028","\u2029":"\\u2029"}[c]));
 
 function stats(tr){
   const n=tr.length; if(!n) return {n:0,wr:0,exp:0,pf:0,totR:0,pnl:0,aw:0,al:0,payoff:0,dd:0,maxLS:0};
@@ -2155,7 +2215,7 @@ function addTrade(){
 function saveSession(){
   const d=document.getElementById("f_date").value;
   DB.sessions=DB.sessions.filter(s=>s.date!==d);
-  DB.sessions.push({date:d,sleep:document.getElementById("s_sleep").value,phys:document.getElementById("s_phys").value,
+  DB.sessions.push({id:"d:"+d,m:Date.now(),date:d,sleep:document.getElementById("s_sleep").value,phys:document.getElementById("s_phys").value,
     ment:document.getElementById("s_ment").value,cap:document.getElementById("s_cap").value,
     mistake:document.getElementById("s_mistake").value,fix:document.getElementById("s_fix").value});
   DB.sessions.sort((a,b)=>a.date.localeCompare(b.date));save();render();toast("Session state saved");
@@ -2487,13 +2547,30 @@ function fixedRisk(){
   return R.fixed&&+R.def>0 ? +R.def : 0;
 }
 function riskBand(){ const b=+((CFG.risk||{}).band); return b>0&&b<100 ? b/100 : 0.35 }
+/* "Fixed" risk is fixed per stage of a box, not forever: a box can step from $25 to $30
+   once its profit passes a line. Measuring a $30 trade against $25 would shrink every
+   R he earned after the step-up. So the figure expected is the box's own ladder at the
+   moment of that trade, and the default only when the trade sits in no box. */
+function expectedRisk(t){
+  const F=fixedRisk(); if(!t)return F;
+  const bs=boxes().filter(b=>b&&b.start&&+b.r0>0);
+  let bx=t.box?bs.find(b=>b.id===t.box):null;
+  if(!bx&&t.date)bx=bs.filter(b=>t.date>=b.start&&(!b.closed||t.date<=b.closed)).pop()||null;
+  if(!bx)return F;
+  const key=(t.date||"")+(t.time||"");
+  const profit=DB.trades.filter(x=>x!==t&&x.id!==t.id&&(t.box?x.box===bx.id:(x.date>=bx.start))
+      &&((x.date||"")+(x.time||""))<key).reduce((a,x)=>a+(+x.pnl||0),0);
+  return riskTier(bx,profit)||F;
+}
 /* returns the risk this trade should be measured against, or 0 to leave it alone */
-function trueRisk(derived,med){
+function trueRisk(derived,med,t){
   const F=fixedRisk();
   if(F>0){
-    if(!(derived>0))return F;
-    const off=Math.abs(derived-F)/F;
-    return off>riskBand() ? F : 0;        // inside the band, the statement is believable
+    const E=expectedRisk(t)||F;
+    if(!(derived>0))return E;
+    const near=v=>v>0&&Math.abs(derived-v)/v<=riskBand();
+    if(near(E))return 0;                  // inside the band, the statement is believable
+    return E;
   }
   if(med>0&&derived>0&&derived<med*0.5)return med;
   return 0;
@@ -2510,7 +2587,7 @@ function rowsToTrades(rows,map,opt){
   const out=rows.map(r=>rowToTrade(r,map,o2));
   out.forEach(t=>{
     if(!t||t.skip)return;
-    const fix=trueRisk(t.risk,med);
+    const fix=trueRisk(t.risk,med,t);
     if(fix>0&&Math.abs(fix-t.risk)>0.005){t.risk=fix;t.r=t.pnl/fix;t.riskEst=true;t.moved=true}
   });
   out.medRisk=med;
@@ -3327,7 +3404,7 @@ function repairRisk(preview){
   const med=hist.length>=5?hist[Math.floor(hist.length/2)]:0;
   const hits=[];
   DB.trades.forEach(t=>{
-    const fix=trueRisk(+t.risk||0,med);
+    const fix=trueRisk(+t.risk||0,med,t);
     if(fix>0&&Math.abs(fix-(+t.risk||0))>0.005)
       hits.push({t,from:+t.risk||0,to:fix,rFrom:+t.r||0,rTo:(+t.pnl||0)/fix});
   });
@@ -3735,9 +3812,19 @@ function renderBoxes(){
   const pctDone=Math.min(1,(bx.count||0)/bx.target);
   const C=2*Math.PI*62;
   const done=bx.status==="done";
-  host.innerHTML=`<div class="card">
+  const carried=Array.isArray(bx.carried)?bx.carried:[];
+  host.innerHTML=`${done?`<div class="note ok" style="margin-bottom:14px"><span class="ic">✓</span><div>
+      <b>${esc(bx.name)} is complete.</b> Before you open the next one, read what it taught you — and choose what to carry forward.
+      <div style="margin-top:10px"><button class="btn sm" onclick="openBoxReport('${jsq(bx.id)}')">Open the box report</button></div></div></div>`:""}
+  ${carried.length&&!done?`<div class="card lessonpin">
+    <h2><span class="dot"></span>What you promised to change<span class="tail">from ${esc(carried[0].fromName||"your last box")}</span></h2>
+    ${carried.map(c=>{const J=judgeLesson(c,boxTrades(bx.id));return `<div class="pinrow">
+      <span class="vd ${J.v}">${esc(J.w)}</span><div><b>${esc(c.title)}</b>${c.fix?`<div class="mini">${c.fix}</div>`:""}</div></div>`}).join("")}
+  </div>`:""}
+  <div class="card">
     <h2><span class="dot"></span>${esc(bx.name)}
-      <span class="tail"><span class="verdict ${VD.v}">${esc(VD.label)}</span></span></h2>
+      <span class="tail"><span class="verdict ${VD.v}">${esc(VD.label)}</span>
+      <button class="btn sec sm" style="margin-left:10px" onclick="openBoxReport('${jsq(bx.id)}')">Report</button></span></h2>
     <p class="hint" style="margin-bottom:14px">${done?"Finished "+esc(bx.closed||""):"Open since "+esc(bx.start)}${bx.endPlanned?" · planned end "+esc(bx.endPlanned):""} · ${({trades:"closes on trade count",days:"closes on the date",either:"closes on whichever comes first"})[bx.mode||"trades"]}</p>
     <div class="boxhero">
       <div class="ring">
@@ -4097,7 +4184,7 @@ function renderBoxDay(bx,k){
     </div>
     <div class="row" style="margin-top:6px">
       <button class="btn sec sm" onclick="openBoxDay('${jsq(k)}')">Close this day</button>
-      <span class="mini">Windows traded: ${[...new Set(day.map(t=>t.session).filter(Boolean))].join(" · ")||"—"}</span>
+      <span class="mini">Windows traded: ${[...new Set(day.map(t=>t.session).filter(Boolean))].map(esc).join(" · ")||"—"}</span>
     </div>
   </div>`;
   // thumbnails come out of IndexedDB, so fill them in once the panel exists
@@ -4107,6 +4194,382 @@ function renderBoxDay(bx,k){
     try{const src=await shotGet(t);if(src)im.src=src;else im.remove()}catch(e){im.remove()}
   });
 }
+/* ============================================================
+   BOX REPORT — every box is an experiment, and this is its write-up
+
+   A box is the unit he learns in: so many trades, under fixed rules, then a
+   look back. This page is that look back. It answers four questions, in the
+   order a coach would ask them:
+     1. How did it go?                    (the numbers, with honest error bars)
+     2. Where did it come from?           (every way the trades can be split)
+     3. What should change next time?     (lessons, each one measurable)
+     4. Did last box's lessons stick?     (checked against this box's trades)
+   ============================================================ */
+const MEASURES={
+  strat:  {label:k=>`The ${k} setup`,          pick:(t,k)=>t.strat===k},
+  win:    {label:k=>`The ${k} window`,         pick:(t,k)=>t.session===k},
+  grade:  {label:k=>`Grade ${k} setups`,       pick:(t,k)=>t.grade===k},
+  state:  {label:k=>`Trading while ${k}`,      pick:(t,k)=>t.emo===k},
+  day:    {label:k=>`${k}s`,                   pick:(t,k)=>DOWS[new Date(t.date+"T00:00:00").getDay()]===k},
+  offplan:{label:()=>"Trades taken off-plan",  pick:t=>!!t.adh&&t.adh!==adhName("full")},
+  after:  {label:()=>"The trade right after a stop"},
+  late:   {label:k=>`Trade #${k} onward`,      pick:(t,k)=>+t.tradeNo>=+k},
+  over:   {label:()=>"Losses past your stop",  pick:t=>t.r<-1.25},
+  exits:  {label:()=>"Winners closed early"},
+  custom: {label:k=>k}
+};
+function revengeSet(tr){
+  const seq=tr.slice().sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  const out=new Set();
+  for(let i=1;i<seq.length;i++)if(isStop(seq[i-1])&&seq[i].date===seq[i-1].date)out.add(seq[i]);
+  return out;
+}
+/* how a lesson looks inside any set of trades — the same yardstick both boxes are held to */
+function measure(key,tr){
+  const [type,...rest]=String(key).split(":"); const k=rest.join(":");
+  const N=tr.length;
+  if(type==="exits"){
+    const w=tr.filter(t=>t.mfe!==""&&t.mfe!==undefined&&t.mfe!==null&&isFinite(+t.mfe)&&t.r>0);
+    const left=w.map(t=>Math.max(0,+t.mfe-t.r));
+    return {N,n:w.length,rate:w.length?sum(left)/w.length:0,totR:-sum(left),exp:w.length?-sum(left)/w.length:0,unit:"R left per winner"};
+  }
+  if(type==="custom")return {N,n:0,rate:0,totR:0,exp:0};
+  let sub;
+  if(type==="after"){const r=revengeSet(tr);sub=tr.filter(t=>r.has(t))}
+  else{const M=MEASURES[type];sub=M&&M.pick?tr.filter(t=>M.pick(t,k)):[]}
+  const s=stats(sub);
+  return {N,n:sub.length,rate:N?sub.length/N:0,totR:s.totR,exp:s.exp,wr:s.wr,unit:"of trades"};
+}
+const lessonLabel=key=>{const [t,...r]=String(key).split(":");const M=MEASURES[t];return M?M.label(r.join(":")):key};
+
+/* Lessons are only drawn from groups big enough to mean something, and every one of
+   them says how sure it is — a box of 40 trades cannot carry the certainty of 400. */
+function boxLessons(tr){
+  const M=MIN(), minN=Math.max(5,Math.round((M.slice||8)*0.6)), S=stats(tr), out=[];
+  if(tr.length<10)return {thin:true,list:out,S};
+  const sure=(a,b)=>{const t=permTest(a.map(x=>x.r),b.map(x=>x.r),1500);return t?t.p:1};
+  const cand=(type,k,sub,why,fix)=>{
+    const rest=tr.filter(t=>!sub.includes(t)), a=stats(sub), b=stats(rest);
+    if(a.n<minN||b.n<3)return;
+    if(!(a.exp<0&&a.totR<-1)&&!(a.exp<b.exp-0.3&&a.totR<0))return;
+    const p=sure(sub,rest);
+    out.push({key:type+(k!==undefined?":"+k:""),kind:"leak",title:lessonLabel(type+(k!==undefined?":"+k:"")),
+      n:a.n,totR:a.totR,exp:a.exp,restExp:b.exp,gain:(S.totR-a.totR)/Math.max(1,b.n)-S.exp,p,
+      why:why(a,b),fix});
+  };
+  Object.entries(group(tr,t=>t.strat)).forEach(([k,v])=>cand("strat",k,v,
+    (a,b)=>`${a.n} trades, ${n2(a.totR)}R in total — ${n2(a.exp)}R each, against ${n2(b.exp)}R for everything else.`,
+    `Leave ${esc(k)} out of the next box, or take it only at half size until it earns its place back.`));
+  Object.entries(group(tr,t=>t.session)).forEach(([k,v])=>cand("win",k,v,
+    (a,b)=>`${a.n} trades in this window, ${n2(a.totR)}R — ${n2(a.exp)}R each, against ${n2(b.exp)}R in your other hours.`,
+    `Do not trade the ${esc(k)} window in the next box. Close the platform for it if you have to.`));
+  Object.entries(group(tr,t=>t.grade)).forEach(([k,v])=>{ if(gradePol(k)!=="good")cand("grade",k,v,
+    (a,b)=>`Grade ${esc(k)} setups returned ${n2(a.exp)}R each over ${a.n} trades. Everything rated higher returned ${n2(b.exp)}R.`,
+    `Only take grade ${esc(names("grades").filter(g=>gradePol(g)==="good").join("/")||"A")} setups next box. If you have to grade it ${esc(k)}, it is a pass.`)});
+  Object.entries(group(tr,t=>t.emo)).forEach(([k,v])=>{ if(statePol(k)!=="good")cand("state",k,v,
+    (a,b)=>`${a.n} trades taken while ${esc(k)}: ${n2(a.exp)}R each, against ${n2(b.exp)}R otherwise.`,
+    `When you notice you are ${esc(k)}, the day is over. Make it a rule before the box starts, not a decision in the moment.`)});
+  {const off=tr.filter(MEASURES.offplan.pick);
+   if(off.length)cand("offplan",undefined,off,
+    (a,b)=>`Breaking your own rules returned ${n2(a.exp)}R a trade over ${a.n} trades. Following them returned ${n2(b.exp)}R.`,
+    "Before every entry, read the checklist out loud. Off-plan trades are the cheapest leak to close — the plan already works.")}
+  {const r=[...revengeSet(tr)];
+   if(r.length)cand("after",undefined,r,
+    (a,b)=>`${a.n} trades taken straight after a stop on the same day: ${n2(a.exp)}R each, against ${n2(b.exp)}R otherwise.`,
+    "After every stop, ten minutes away from the screen. Set a timer. It costs nothing.")}
+  {const byNo=group(tr,t=>String(t.tradeNo||""));
+   const nums=Object.keys(byNo).map(Number).filter(x=>x>1).sort((a,b)=>a-b);
+   for(const i of nums){const late=tr.filter(t=>+t.tradeNo>=i);
+     const a=stats(late), b=stats(tr.filter(t=>+t.tradeNo<i));
+     if(a.n>=minN&&a.exp<0&&a.exp<b.exp-0.2){
+       cand("late",i,late,(a,b)=>`From the ${i}${i===2?"nd":i===3?"rd":"th"} trade of a day you made ${n2(a.exp)}R each; before it, ${n2(b.exp)}R.`,
+         `Cap the next box at ${i-1} trade${i-1===1?"":"s"} a day — set it in the box, so the Trade Gate holds you to it.`);
+       break;}}}
+  {const o=tr.filter(MEASURES.over.pick);
+   if(o.length>=3){const extra=sum(o.map(t=>-1-t.r));
+     out.push({key:"over",kind:"note",title:lessonLabel("over"),n:o.length,totR:-extra,exp:-extra/o.length,
+       why:`${o.length} losses went past your stop and gave away <b>${n2(extra)}R</b> more than you had decided to risk.`,
+       fix:"Stop loss goes in with the order, and it is never moved further away. Not once."})}}
+  {const e=measure("exits",tr);
+   if(e.n>=minN&&e.rate>0.4)out.push({key:"exits",kind:"note",title:lessonLabel("exits"),n:e.n,totR:e.totR,exp:-e.rate,
+     why:`Your winners ran an average of <b>${n2(e.rate)}R</b> further than where you closed them — ${n2(-e.totR)}R in total across ${e.n} winners.`,
+     fix:"Next box, leave half the position on until the target or a structure break. Measure whether it pays before deciding."})}
+  /* what earned the box, so it is protected rather than tinkered with */
+  const keep=[];
+  [["strat",t=>t.strat],["win",t=>t.session]].forEach(([type,f])=>{
+    Object.entries(group(tr,f)).forEach(([k,v])=>{const s=stats(v);
+      if(s.n>=minN&&s.exp>0&&s.exp>S.exp)keep.push({key:type+":"+k,kind:"strength",title:lessonLabel(type+":"+k),n:s.n,totR:s.totR,exp:s.exp,
+        why:`${s.n} trades, ${n2(s.totR)}R, ${n2(s.exp)}R each — better than the box as a whole.`,
+        fix:`Protect it. Give it more of the next box rather than less, and change nothing about how you take it.`})})});
+  keep.sort((a,b)=>b.totR-a.totR);
+  out.sort((a,b)=>(a.kind==="leak"?0:1)-(b.kind==="leak"?0:1)||a.totR-b.totR);
+  return {list:out.concat(keep.slice(0,3)),S,minN};
+}
+/* the box before this one is what "better" is measured against */
+function prevBox(bx){
+  const bs=boxes().filter(b=>b&&b.id!==bx.id&&b.start&&b.start<=bx.start&&boxTrades(b.id).length)
+    .sort((a,b)=>a.start.localeCompare(b.start));
+  return bs.pop()||null;
+}
+/* did a lesson carried in from the last box actually change anything? */
+function judgeLesson(L,tr){
+  if(L.key==="custom"||String(L.key).startsWith("custom"))return {v:L.done?"good":"thin",w:L.done?"you marked it done":"tick it when you have",now:null};
+  const now=measure(L.key,tr), was=L.was||{};
+  if(now.N<10)return {v:"thin",w:"too few trades yet to judge",now};
+  if(L.kind==="strength"){
+    const ok=now.n>0&&now.exp>0;
+    return {v:ok?"good":"bad",w:ok?"still earning":"it stopped working",now};
+  }
+  if(L.key==="exits"){
+    const better=now.rate<=(was.rate||0)*0.7;
+    return {v:better?"good":now.rate<(was.rate||0)?"warn":"bad",w:better?"applied":now.rate<(was.rate||0)?"a little better":"not applied",now};
+  }
+  const r0=+was.rate||0, r1=now.rate;
+  if(r1===0)return {v:"good",w:"applied — none at all this box",now};
+  if(r1<=r0*0.5||now.totR>=0)return {v:"good",w:"applied",now};
+  if(r1<r0*0.85)return {v:"warn",w:"partly applied",now};
+  return {v:"bad",w:"not applied",now};
+}
+
+let BXR={id:"",tab:"all"};
+function openBoxReport(id){
+  const bx=boxes().find(b=>b.id===id); if(!bx)return;
+  BXR={id,tab:"all"};
+  let host=document.getElementById("bxRep");
+  if(!host){host=document.createElement("div");host.id="bxRep";host.className="bxrep";document.body.appendChild(host)}
+  host.classList.add("on");
+  document.body.classList.add("noscroll");
+  renderBoxReport();
+  host.scrollTop=0;
+}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("bxRep")&&document.getElementById("bxRep").classList.contains("on"))closeBoxReport()});
+function closeBoxReport(){
+  const h=document.getElementById("bxRep"); if(h)h.classList.remove("on");
+  document.body.classList.remove("noscroll");
+}
+function bdTable(title,tr,keyFn,opts){
+  opts=opts||{};
+  const M=MIN(), g=group(tr,keyFn), rows=Object.entries(g).map(([k,v])=>[k,stats(v)]);
+  if(!rows.length)return "";
+  rows.sort((a,b)=>opts.order?opts.order(a[0],b[0]):b[1].totR-a[1].totR);
+  const solid=rows.filter(r=>r[1].n>=Math.max(3,Math.round((M.slice||8)*0.6)));
+  const best=solid.length>1?solid.reduce((a,b)=>b[1].exp>a[1].exp?b:a)[0]:"";
+  const worst=solid.length>1?solid.reduce((a,b)=>b[1].exp<a[1].exp?b:a)[0]:"";
+  const mx=Math.max(...rows.map(r=>Math.abs(r[1].totR)),1);
+  return `<div class="bdt"><div class="st">${esc(title)}</div>
+    <div class="scroll"><table><thead><tr><th></th><th>Trades</th><th>Win</th><th>Each</th><th>Total</th><th style="width:28%"></th></tr></thead><tbody>
+    ${rows.map(([k,s])=>{const thin=s.n<Math.max(3,Math.round((M.slice||8)*0.6));
+      return `<tr class="${k===best?"best":k===worst?"worst":""}${thin?" thin":""}">
+      <td>${esc(opts.label?opts.label(k):k)}${k===best?' <span class="tag g">best</span>':k===worst?' <span class="tag r">worst</span>':""}</td>
+      <td class="mono">${s.n}</td><td class="mono">${pct(s.wr)}</td>
+      <td class="mono ${cls(s.exp)}">${n2(s.exp)}R</td><td class="mono ${cls(s.totR)}">${n2(s.totR)}R</td>
+      <td><div class="bdbar"><i class="${s.totR>=0?"p":"n"}" style="width:${(Math.abs(s.totR)/mx*100).toFixed(1)}%"></i></div></td></tr>`}).join("")}
+    </tbody></table></div></div>`;
+}
+function equitySVG(tr){
+  const seq=tr.slice().sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  if(seq.length<2)return "";
+  let c=0,peak=0;const pts=[0],dd=[0];
+  seq.forEach(t=>{c+=(+t.r||0);peak=Math.max(peak,c);pts.push(c);dd.push(c-peak)});
+  const lo=Math.min(0,...pts),hi=Math.max(0,...pts),sp=(hi-lo)||1,W=100,H=100;
+  const X=i=>(i/(pts.length-1))*W, Y=v=>H-((v-lo)/sp)*H;
+  const line=pts.map((v,i)=>(i?"L":"M")+X(i).toFixed(2)+" "+Y(v).toFixed(2)).join(" ");
+  const area=line+` L${W} ${Y(lo).toFixed(2)} L0 ${Y(lo).toFixed(2)} Z`;
+  const ddLo=Math.min(...dd)||-1, DH=26;
+  const ddp=dd.map((v,i)=>(i?"L":"M")+X(i).toFixed(2)+" "+(v/ddLo*DH).toFixed(2)).join(" ")+` L${W} 0 L0 0 Z`;
+  return `<div class="eqwrap">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="eq">
+      <defs><linearGradient id="eqg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(212,175,55,.32)"/><stop offset="1" stop-color="rgba(212,175,55,0)"/></linearGradient></defs>
+      <path d="${area}" fill="url(#eqg)"/>
+      <line x1="0" x2="${W}" y1="${Y(0).toFixed(2)}" y2="${Y(0).toFixed(2)}" stroke="rgba(255,255,255,.25)" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/>
+      <path d="${line}" fill="none" stroke="var(--gold)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    </svg>
+    <svg viewBox="0 0 ${W} ${DH}" preserveAspectRatio="none" class="dd"><path d="${ddp}" fill="rgba(240,84,79,.35)"/></svg>
+    <div class="mini eqlab"><span>trade 1</span><span>underwater below the line — deepest ${n2(Math.min(...dd))}R</span><span>trade ${seq.length}</span></div>
+  </div>`;
+}
+function renderBoxReport(){
+  const host=document.getElementById("bxRep"); if(!host)return;
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx){closeBoxReport();return}
+  const tr=boxTrades(bx.id), S=stats(tr), VD=boxVerdict(bx), L=boxLedger(bx);
+  const R=tr.map(t=>+t.r||0).filter(isFinite), ci=R.length>=10?bootCI(R):null;
+  const days=[...new Set(tr.map(t=>t.date))].length;
+  const full=adhName("full"), tagged=tr.filter(t=>t.adh), followed=tagged.filter(t=>t.adh===full);
+  const disc=tagged.length?followed.length/tagged.length:null;
+  const payouts=sum(L.weeks.map(w=>+w.withdrawn||0))+(+L.wallet||0)*0;
+  const ret=bx.capital>0?(S.pnl/bx.capital):null;
+  const vio=boxViolations(bx);
+  const P=prevBox(bx), PT=P?boxTrades(P.id):[], PS=P?stats(PT):null;
+  const LS=boxLessons(tr);
+  const carry=new Set((bx.carry||[]).map(c=>c.key));
+  const done=bx.status!=="active";
+
+  const kpi=(l,v,c,sub)=>`<div class="kp"><div class="l">${l}</div><div class="v ${c||""}">${v}</div>${sub?`<div class="s">${sub}</div>`:""}</div>`;
+  const cmp=(label,a,b,fmt,better)=>{
+    if(a===null||b===null||!isFinite(a)||!isFinite(b))return "";
+    const d=b-a, good=better==="up"?d>0:d<0, flat=Math.abs(d)<1e-9;
+    return `<tr><td>${label}</td><td class="mono">${fmt(a)}</td><td class="mono">${fmt(b)}</td>
+      <td class="mono ${flat?"":good?"pos":"neg"}">${flat?"=":(d>0?"▲ ":"▼ ")+fmt(Math.abs(d)).replace(/^-/,"")}</td></tr>`;
+  };
+  const pDisc=P?(()=>{const tg=PT.filter(t=>t.adh);return tg.length?tg.filter(t=>t.adh===full).length/tg.length:null})():null;
+  const pEx=P?measure("exits",PT).rate:null, nEx=measure("exits",tr).rate;
+
+  host.innerHTML=`<div class="bxrep-in">
+  <div class="bxrep-top">
+    <div><div class="mini" style="letter-spacing:.14em;text-transform:uppercase;color:var(--gold)">Box report</div>
+      <h1>${esc(bx.name||"Box")} <span class="verdict ${VD.v}">${esc(VD.label)}</span></h1>
+      <div class="mini">${esc(bx.start||"")}${bx.closed?" → "+esc(bx.closed):" → now"} · ${tr.length}${bx.target?"/"+bx.target:""} trades · ${days} trading day${days===1?"":"s"}${(bx.symbols||[]).length?" · "+bx.symbols.map(esc).join(", "):""}</div></div>
+    <div class="row" style="gap:8px">
+      <button class="btn sec sm" onclick="copyBoxReport()">Copy as text</button>
+      <button class="btn sec sm" onclick="window.print()">Print / PDF</button>
+      <button class="btn sm" onclick="closeBoxReport()">Close</button>
+    </div>
+  </div>
+
+  ${!tr.length?`<div class="note warn"><span class="ic">!</span><div>No trades have landed in this box yet. Its report fills in as you trade.</div></div>`:`
+
+  <div class="kpgrid">
+    ${kpi("Net result",(S.pnl<0?"−$":"$")+n2(Math.abs(S.pnl)),cls(S.pnl),ret!==null?pct(ret)+" on $"+n2(bx.capital):"")}
+    ${kpi("Total R",n2(S.totR)+"R",cls(S.totR),n2(S.exp)+"R a trade")}
+    ${kpi("Expectancy",n2(S.exp)+"R",cls(S.exp),ci?`95% between ${n2(ci.lo)} and ${n2(ci.hi)}`:"needs 10 trades for a range")}
+    ${kpi("Win rate",pct(S.wr),"",`${tr.filter(t=>t.pnl>0).length} won · ${tr.filter(isStop).length} stopped`)}
+    ${kpi("Profit factor",S.pf>=99?"∞":n2(S.pf),S.pf>=1?"pos":"neg","")}
+    ${kpi("Avg win / loss",n2(S.aw)+" / "+n2(S.al)+"R","",`payoff ${n2(S.payoff)}`)}
+    ${kpi("Deepest drawdown",n2(-Math.abs(S.dd))+"R","neg",`longest losing run ${S.maxLS}`)}
+    ${kpi("Discipline",disc===null?"—":pct(disc),disc!==null&&disc>=0.85?"pos":disc!==null&&disc<0.7?"neg":"",tagged.length?`${followed.length} of ${tagged.length} by the plan`:"tag adherence to see this")}
+    ${kpi("Rule breaks",String(vio.length),vio.length?"neg":"pos",vio.length?"trades outside the box's rules":"none")}
+    ${kpi("Trades a day",n2(tr.length/Math.max(1,days)),"","")}
+    ${kpi("Paid out",payouts>0?"$"+n2(payouts):"—","",bx.payPct?bx.payPct+"% of winning weeks":"")}
+    ${kpi("Left on the table",nEx>0?n2(nEx)+"R":"—",nEx>0.4?"neg":"","per winner, from your MFE notes")}
+  </div>
+  ${ci&&ci.lo<=0&&ci.hi>0?`<div class="mini" style="margin:-6px 0 16px">The range for expectancy still includes zero — at ${tr.length} trades this box cannot yet tell a real edge from luck. Read the lessons below as directions to test, not verdicts.</div>`:""}
+
+  <div class="bxsec"><div class="st">The box, trade by trade</div>${equitySVG(tr)}</div>
+
+  ${P?`<div class="bxsec"><div class="st">Against ${esc(P.name||"the previous box")}<span>${PT.length} trades then · ${tr.length} now</span></div>
+    <div class="scroll"><table class="cmp"><thead><tr><th></th><th>${esc(P.name||"Before")}</th><th>${esc(bx.name||"This box")}</th><th>Change</th></tr></thead><tbody>
+      ${cmp("Expectancy",PS.exp,S.exp,v=>n2(v)+"R","up")}
+      ${cmp("Win rate",PS.wr,S.wr,v=>pct(v),"up")}
+      ${cmp("Profit factor",Math.min(PS.pf,99),Math.min(S.pf,99),v=>n2(v),"up")}
+      ${cmp("Average win",PS.aw,S.aw,v=>n2(v)+"R","up")}
+      ${cmp("Average loss",Math.abs(PS.al),Math.abs(S.al),v=>n2(v)+"R","down")}
+      ${cmp("Deepest drawdown",Math.abs(PS.dd),Math.abs(S.dd),v=>n2(v)+"R","down")}
+      ${cmp("Longest losing run",PS.maxLS,S.maxLS,v=>String(Math.round(v)),"down")}
+      ${cmp("Discipline",pDisc,disc,v=>pct(v),"up")}
+      ${cmp("Left on the table",pEx,nEx,v=>n2(v)+"R","down")}
+      ${cmp("Trades a day",PT.length/Math.max(1,new Set(PT.map(t=>t.date)).size),tr.length/Math.max(1,days),v=>n2(v),"down")}
+    </tbody></table></div>
+    ${(()=>{const t=permTest(PT.map(x=>x.r),R,2000);return t?`<div class="mini" style="margin-top:8px">Is the change in expectancy real? <span class="vd ${t.p<0.05?(S.exp>PS.exp?"good":"bad"):t.p<0.15?"warn":"thin"}">${pWord(t.p)}</span> (p = ${t.p.toFixed(3)})</div>`:""})()}
+  </div>`:""}
+
+  ${(bx.carried||[]).length?`<div class="bxsec"><div class="st">Did last box's lessons stick?<span>carried in from ${esc((bx.carried[0]||{}).fromName||"the previous box")}</span></div>
+    ${bx.carried.map((c,i)=>{const J=judgeLesson(c,tr);
+      return `<div class="lesson ${J.v}">
+        <div class="lh"><b>${esc(c.title)}</b><span class="vd ${J.v}">${esc(J.w)}</span></div>
+        <div class="mini">${c.fix?c.fix:""}</div>
+        ${J.now&&c.was&&c.key!=="exits"?`<div class="mini lm">Before: ${c.was.n} of ${c.was.N} trades (${pct(c.was.rate)}), ${n2(c.was.totR)}R · Now: ${J.now.n} of ${J.now.N} (${pct(J.now.rate)}), ${n2(J.now.totR)}R</div>`:""}
+        ${J.now&&c.key==="exits"?`<div class="mini lm">Before: ${n2(c.was.rate)}R left per winner · Now: ${n2(J.now.rate)}R</div>`:""}
+        ${String(c.key).startsWith("custom")?`<label class="row mini" style="gap:6px;margin-top:6px;cursor:pointer"><input type="checkbox" ${c.done?"checked":""} onchange="markCarried(${i},this.checked)"> I applied this</label>`:""}
+      </div>`}).join("")}
+  </div>`:""}
+
+  <div class="bxsec"><div class="st">What to carry into the next box<span>tick the ones you will act on</span></div>
+    ${LS.thin?`<div class="mini">Ten trades or more are needed before this box can teach anything reliable.</div>`:
+      !LS.list.length?`<div class="note ok"><span class="ic">✓</span><div>Nothing in this box stands out as a leak big enough to act on. Keep the rules exactly as they were and run the next box the same way — consistency is the lesson.</div></div>`:
+      LS.list.map(l=>`<div class="lesson ${l.kind==="strength"?"good":l.kind==="note"?"warn":"bad"}">
+        <div class="lh"><label class="row" style="gap:9px;cursor:pointer;margin:0">
+            <input type="checkbox" ${carry.has(l.key)?"checked":""} onchange="toggleCarry('${jsq(l.key)}',this.checked)">
+            <b>${esc(l.title)}</b></label>
+          <span class="mono ${cls(l.totR)}">${n2(l.totR)}R<small> · ${l.n} trades</small></span></div>
+        <p>${l.why}</p>
+        <div class="rpfix"><span class="k">${l.kind==="strength"?"Keep":"Next box"}</span>${l.fix}</div>
+        ${l.p!==undefined?`<div class="mini" style="margin-top:6px">How sure: <span class="vd ${l.p<0.05?"good":l.p<0.15?"warn":"thin"}">${pWord(l.p)}</span></div>`:""}
+      </div>`).join("")}
+    <div class="lesson own">
+      <div class="lh"><b>Your own lesson</b></div>
+      <div class="row" style="gap:8px;margin-top:6px">
+        <input id="bxOwnLesson" placeholder="Something you noticed that the numbers cannot see…" style="flex:1">
+        <button class="btn sec sm" onclick="addOwnLesson()">Carry it</button>
+      </div>
+      ${(bx.carry||[]).filter(c=>String(c.key).startsWith("custom")).map(c=>`<div class="mini" style="margin-top:6px">✓ ${esc(c.title)}
+        <a href="javascript:void 0" onclick="toggleCarry('${jsq(c.key)}',false)" style="margin-left:6px">remove</a></div>`).join("")}
+    </div>
+    ${(bx.carry||[]).length?`<div class="mini" style="margin-top:10px;color:var(--gold-lt)">${(bx.carry||[]).length} lesson${(bx.carry||[]).length===1?"":"s"} will be pinned to the next box you open, shown in the Trade Gate, and checked when that box ends.</div>`:""}
+  </div>
+
+  <div class="bxsec"><div class="st">Where the result came from</div>
+    <div class="bdgrid">
+      ${bdTable("By strategy",tr,t=>t.strat)}
+      ${bdTable("By session window",tr,t=>t.session)}
+      ${bdTable("By setup grade",tr,t=>t.grade,{order:(a,b)=>a.localeCompare(b)})}
+      ${bdTable("By mental state",tr,t=>t.emo)}
+      ${bdTable("By rule adherence",tr,t=>t.adh)}
+      ${bdTable("By trade of the day",tr,t=>t.tradeNo?String(t.tradeNo):"",{order:(a,b)=>+a-+b,label:k=>"Trade #"+k})}
+      ${bdTable("By weekday",tr,t=>t.date?DOWS[new Date(t.date+"T00:00:00").getDay()]:"",{order:(a,b)=>DOWS.indexOf(a)-DOWS.indexOf(b)})}
+      ${bdTable("By side",tr,t=>t.dir)}
+    </div>
+  </div>
+
+  ${vio.length?`<div class="bxsec"><div class="st">Where the box's own rules were broken<span>${vio.length} trades</span></div>
+    ${(()=>{const s=stats(vio.map(v=>v.t));return `<div class="mini" style="margin-bottom:8px">Those trades returned <b class="${cls(s.totR)}">${n2(s.totR)}R</b> in total, ${n2(s.exp)}R each.</div>`})()}
+    <div class="scroll"><table><thead><tr><th>Date</th><th>Time</th><th>R</th><th>Broke</th></tr></thead><tbody>
+      ${vio.slice(0,12).map(v=>`<tr><td class="mono">${esc(v.t.date)}</td><td class="mono">${esc(v.t.time||"")}</td>
+        <td class="mono ${cls(v.t.r)}">${n2(v.t.r)}R</td><td class="mini">${v.v.map(esc).join(" · ")}</td></tr>`).join("")}
+    </tbody></table></div></div>`:""}
+
+  <div class="bxsec"><div class="st">Your review of this box</div>
+    <textarea id="bxReview" rows="5" placeholder="What did this box teach you? What will you do differently — and what will you protect?"
+      oninput="saveBoxReview(this.value)">${esc(bx.review||"")}</textarea>
+    <div class="mini" style="margin-top:6px">Saved as you type, and synced with your other devices.</div>
+  </div>
+  `}
+  </div>`;
+}
+let BXREV_T=null;
+function saveBoxReview(v){
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx)return;
+  bx.review=v; clearTimeout(BXREV_T); BXREV_T=setTimeout(()=>save(),600);
+}
+function toggleCarry(key,on){
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx)return;
+  bx.carry=(bx.carry||[]).filter(c=>c.key!==key);
+  if(on){
+    const L=boxLessons(boxTrades(bx.id)).list.find(l=>l.key===key);
+    if(L)bx.carry.push({key:L.key,kind:L.kind,title:L.title,fix:L.fix,was:measure(L.key,boxTrades(bx.id)),from:bx.id,fromName:bx.name});
+  }
+  save(); renderBoxReport(); renderBoxes&&renderBoxes();
+}
+function addOwnLesson(){
+  const i=document.getElementById("bxOwnLesson"), v=(i&&i.value||"").trim(); if(!v)return;
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx)return;
+  bx.carry=bx.carry||[];
+  bx.carry.push({key:"custom:"+Date.now().toString(36),kind:"custom",title:v,fix:"",from:bx.id,fromName:bx.name});
+  save(); renderBoxReport(); toast("Lesson will travel to your next box");
+}
+function markCarried(i,on){
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx||!bx.carried||!bx.carried[i])return;
+  bx.carried[i].done=!!on; save(); renderBoxReport();
+}
+/* the lessons the running box was opened with — what the trader promised to do */
+function activeLessons(){
+  const b=activeBox(); return b&&Array.isArray(b.carried)?b.carried:[];
+}
+function copyBoxReport(){
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx)return;
+  const tr=boxTrades(bx.id), S=stats(tr), LS=boxLessons(tr), P=prevBox(bx), PS=P?stats(boxTrades(P.id)):null;
+  const L=[];
+  L.push(`# ${bx.name} — box report`);
+  L.push(`${bx.start}${bx.closed?" → "+bx.closed:" → now"} · ${tr.length} trades`);
+  L.push(`Net $${n2(S.pnl)} · ${n2(S.totR)}R · ${n2(S.exp)}R a trade · win rate ${pct(S.wr)} · profit factor ${S.pf>=99?"∞":n2(S.pf)} · deepest drawdown ${n2(S.dd)}R`);
+  if(PS)L.push(`Previous box (${P.name}): ${n2(PS.exp)}R a trade, win rate ${pct(PS.wr)}`);
+  if((bx.carried||[]).length){L.push("");L.push("## Lessons carried in");
+    bx.carried.forEach(c=>{const J=judgeLesson(c,tr);L.push(`- ${c.title}: ${J.w}`)})}
+  if(LS.list.length){L.push("");L.push("## Lessons from this box");
+    LS.list.forEach(l=>L.push(`- ${l.title} (${n2(l.totR)}R over ${l.n} trades): ${String(l.fix).replace(/<[^>]+>/g,"")}`))}
+  if(bx.review){L.push("");L.push("## My review");L.push(bx.review)}
+  copy(L.join("\n"),"Box report copied");
+}
+
 function renderBoxHistory(){
   const host=document.getElementById("boxHistory");
   const bs=boxes().slice().reverse();
@@ -4121,9 +4584,10 @@ function renderBoxHistory(){
       <div><div class="nm">${esc(b.name)} ${tag}</div>
         <div class="sub">${b.count||0}/${b.target} trades · ${esc(b.start)}${b.closed?" → "+esc(b.closed):""}
           ${(b.symbols||[]).length?" · "+b.symbols.map(esc).join(", "):""}</div></div>
-      <div style="text-align:right">
-        <div class="mono ${cls(s.totR)}" style="font-weight:700">${n2(s.totR)}R</div>
+      <div style="text-align:right;display:flex;align-items:center;gap:12px">
+        <div><div class="mono ${cls(s.totR)}" style="font-weight:700">${n2(s.totR)}R</div>
         <div class="sub">${s.n?pct(s.wr)+" win · "+n2(s.exp)+"R exp":"—"}</div></div>
+        <button class="btn sec sm" onclick="event.stopPropagation();openBoxReport('${jsq(b.id)}')">Report</button></div>
     </div>`}).join("");
 }
 /* ---------- account cycle: capital, weekly payouts, risk ladder ---------- */
@@ -4547,7 +5011,9 @@ function createBox(){
   if(activeBox()&&!confirm("A box is already open. Opening a new one closes it where it stands. Continue?"))return;
   const cur=activeBox();
   if(cur){cur.status="abandoned";cur.closed=todayStr()}
-  boxes().push({id:uid(),name,target,start,endPlanned,mode,closed:"",status:"active",
+  const last=boxes().slice().sort((a,b)=>String(a.start).localeCompare(String(b.start))).pop();
+  const carried=last&&Array.isArray(last.carry)?JSON.parse(JSON.stringify(last.carry)).map(c=>Object.assign(c,{done:false})):[];
+  boxes().push({id:uid(),name,target,start,endPlanned,mode,closed:"",status:"active",carried,
     symbols:BXSEL.syms.slice(),strategies:BXSEL.strats.slice(),
     risk:+document.getElementById("bx_risk").value||0,
     cap:+document.getElementById("bx_cap").value||0,
@@ -5282,7 +5748,7 @@ function tick(k,v){DB.checks[k]=v;save();renderChecklist()}
 function clearChecks(){DB.checks={};save();renderChecklist();toast("Checklist reset")}
 function addRule(){const i=document.getElementById("newRule");if(!i.value.trim())return;
   DB.rules.push(i.value.trim());i.value="";save();renderChecklist();toast("Rule added")}
-function delRule(i){DB.rules.splice(i,1);save();renderChecklist()}
+function delRule(i){const t=DB.rules[i];if(t!==undefined)bury("rules",t);DB.rules.splice(i,1);save();renderChecklist()}
 
 /* ============================================================
    DATA TAB
@@ -5305,7 +5771,7 @@ function renderData(){
     <td style="white-space:normal;max-width:230px">${x.review
         ?`<span class="mini">${esc(x.review.length>90?x.review.slice(0,90)+"…":x.review)}</span>`
         :`<button class="clip" title="Write a note" onclick="editNote('${jsq(String(x.id))}')">＋</button>`}</td>
-    <td><button class="btn sec sm" onclick="del(${x.id})">✕</button></td></tr>`}).join("")+`</tbody>`;
+    <td><button class="btn sec sm" onclick="del('${jsq(String(x.id))}')">✕</button></td></tr>`}).join("")+`</tbody>`;
   const fbb=document.getElementById("fbBtn");
   if(fbb)fbb.innerHTML=CFG.feedback
     ? `<a class="btn sec sm" href="${esc(reportUrl())}" target="_blank" rel="noopener noreferrer"
@@ -5324,7 +5790,7 @@ function renderData(){
     <td style="white-space:normal">${esc(s.mistake)}</td><td style="white-space:normal">${esc(s.fix)}</td></tr>`}).join("")+`</tbody>`;
 }
 function del(id){if(!confirm("Delete this trade?"))return;
-  const t=DB.trades.find(x=>x.id===id);
+  const t=DB.trades.find(x=>String(x.id)===String(id)); if(t)id=t.id;
   if(t&&t.shot)shotDel(t).catch(()=>{});          // don't leave the image orphaned
   bury("trades",id);DB.trades=DB.trades.filter(t=>t.id!==id);recomputeTradeNos();save();render()}
 /* attach a chart, or write a note, on any trade after the fact */
@@ -5347,11 +5813,13 @@ function editNote(id){
   toast(t.review?"Note saved":"Note cleared");
 }
 function wipe(){if(!confirm("Erase all trades and session logs? Export a CSV first.\n\nYour setup is kept."))return;
+  markWiped(["trades","sessions"]);
   DB.trades=[];DB.sessions=[];idbClear("shots").catch(()=>{});save();render();toast("All trades erased")}
 /* a clean slate for a new campaign: history and boxes go, everything you configured stays */
 function startFresh(){
   const n=DB.trades.length, b=boxes().length;
   if(!confirm(`Start completely fresh?\n\nThis removes ${n} trades, ${b} box${b===1?"":"es"} and every session log.\n\nKept: your strategies, session windows, checklist, money ledger and all settings.\n\nExport a CSV first if you want the history back.`))return;
+  markWiped(["trades","boxes","sessions"]);
   DB.trades=[];DB.sessions=[];DB.boxes=[];DB.checks={};DB.lock=null;
   idbClear("shots").catch(()=>{});
   if(DB.sync)DB.sync.last="";      // let the folder re-read the whole export next time
@@ -5444,10 +5912,13 @@ function importAll(inp){
         Your boxes and settings on this device were left as they were.</div></div>`;
       return toast(added+" trades merged");
     }
-    // replace
+    // replace — the backup becomes the whole journal, on every synced device too
     DB.trades=d.trades||[]; DB.sessions=d.sessions||[]; DB.checks=d.checks||{};
     DB.rules=d.rules||[]; DB.boxes=d.boxes||[]; DB.money=d.money||[];
     DB.invests=d.invests||[]; DB.map=d.map||{}; DB.cutoff=d.cutoff||""; DB.lock=d.lock||null;
+    {const t=markWiped(["trades","boxes","money","invests","sessions"]);
+     DB.sessions.forEach(x=>{if(x&&!x.id&&x.date)x.id="d:"+x.date});
+     ["trades","boxes","money","invests","sessions"].forEach(k=>(DB[k]||[]).forEach(r=>{if(r&&typeof r==="object"){r.m=t+1;delete r.h}}));}
     if(d.cfg)CFG=migrate(d.cfg);
     try{await idbClear("shots")}catch(e){}
     for(const k of Object.keys(shots)){try{await idbPut(k,shots[k],"shots")}catch(e){}}
@@ -5853,6 +6324,9 @@ function drawGate(){
     </div>
     ${s.lines.map(([m,l,v])=>`<div class="gline"><span class="m ${m}">${m==="y"?"✓":m==="n"?"✕":"?"}</span>
       <span class="lbl">${esc(l)}</span><span class="val">${esc(v)}</span></div>`).join("")}
+    ${activeLessons().length?`<div class="gpromise"><div class="mini" style="letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:6px">You promised yourself</div>
+      ${activeLessons().map(c=>`<div class="gline"><span class="m q">◆</span><span class="lbl">${esc(c.title)}</span>
+        <span class="val">${String(c.fix||"").replace(/<[^>]+>/g,"").split(".")[0]}</span></div>`).join("")}</div>`:""}
     ${s.cap&&s.stops>=s.cap?`<div class="row" style="margin-top:16px">
       <button class="btn danger" onclick="lockNow()">Lock me out${+G().lockMins>0?" for "+G().lockMins+" min":" until tomorrow"}</button>
       <span class="mini">You've hit your stop limit.</span></div>`:""}`;
@@ -6446,7 +6920,7 @@ function renderDecay(){
    ============================================================ */
 const GIST_FILE="trading-journal.json";
 const TOKEN_KEY="tj_sync_token";          // kept out of CFG so it never rides along in an exported setup
-const SYNCED=["trades","boxes","money","invests"];
+const SYNCED=["trades","boxes","money","invests","sessions"];
 let CLOUDING=false, CLOUD_TIMER=null;
 /* CLOUD_QUIET is up while a sync is itself saving. Without it, the sync's own save()
    scheduled another sync, which saved, which scheduled another — every open tab wrote
@@ -6454,7 +6928,7 @@ let CLOUDING=false, CLOUD_TIMER=null;
 var CLOUD_QUIET=false, CLOUD_PAUSE_UNTIL=0, CLOUD_SIG="";
 /* a fingerprint of exactly what would be sent, so nothing is sent twice */
 function cloudSig(){
-  const d=[DB.trades,DB.boxes,DB.money,DB.invests,DB.checks,DB.map,DB.cutoff,DB.gone,
+  const d=[DB.trades,DB.boxes,DB.money,DB.invests,DB.sessions,DB.rules,DB.checks,DB.map,DB.cutoff,DB.gone,DB.wiped,
            (()=>{const c=JSON.parse(JSON.stringify(CFG||{}));delete c.cloud;return c})()];
   const s=JSON.stringify(d); let h=0;
   for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0}
@@ -6509,6 +6983,35 @@ function richness(r){
   if(r.cf&&typeof r.cf==="object")n+=Object.values(r.cf).filter(Boolean).length;
   return n;
 }
+/* Erasing everything is not a pile of individual deletions: one mark per kind says
+   "nothing of this kind older than this moment exists any more". Small, and it holds
+   however many trades there were. */
+function markWiped(kinds){
+  const t=Date.now();
+  if(!DB.wiped||typeof DB.wiped!=="object")DB.wiped={};
+  kinds.forEach(k=>DB.wiped[k]=t);
+  return t;
+}
+/* The same broker statement imported on two machines gives each trade two ids. The
+   ticket is the broker's own name for the position, so two records with one ticket are
+   one trade. Every device must pick the same survivor, so the rule ends in a plain
+   comparison of ids rather than in anything that could differ between machines. */
+function foldDuplicates(list){
+  const by={}, dropped=[];
+  list.forEach(r=>{
+    const tk=r&&r.ticket!==undefined&&r.ticket!==null?String(r.ticket).trim():"";
+    if(!tk)return;
+    const key=tk+"|"+String(r.symbol||"").toUpperCase();
+    (by[key]=by[key]||[]).push(r);
+  });
+  const lose=new Set();
+  Object.values(by).forEach(g=>{
+    if(g.length<2)return;
+    g.sort((a,b)=>(+b.m||0)-(+a.m||0)||richness(b)-richness(a)||String(a.id).localeCompare(String(b.id)));
+    g.slice(1).forEach(x=>{lose.add(x);dropped.push(String(x.id))});
+  });
+  return {kept:list.filter(r=>!lose.has(r)),dropped};
+}
 function bury(kind,id){
   if(!Array.isArray(DB.gone))DB.gone=[];
   DB.gone.push({k:kind,id:String(id),t:Date.now()});
@@ -6516,12 +7019,13 @@ function bury(kind,id){
 }
 
 /* ---- the merge ---- */
-function mergeLists(mine,theirs,gone){
-  const dead={};
+function mergeLists(mine,theirs,gone,wipedAt){
+  const dead={}, floor=+wipedAt||0;
   (gone||[]).forEach(g=>{const k=String(g.id);if(!dead[k]||dead[k]<g.t)dead[k]=g.t});
   const out={}, take=r=>{
     if(!r||typeof r!=="object"||r.id===undefined||r.id===null)return;
     const k=String(r.id), m=+r.m||0;
+    if(floor&&m<=floor)return;                             // erased with everything else
     if(dead[k]!==undefined&&dead[k]>=m)return;            // deleted after it was last edited
     if(!out[k])out[k]=r;
     else{
@@ -6537,7 +7041,16 @@ function mergeDB(remote){
   const r=(remote&&remote.data)||{};
   const gone=mergeGone(DB.gone,r.gone);
   const before={};SYNCED.forEach(k=>before[k]=(DB[k]||[]).length);
-  SYNCED.forEach(k=>{DB[k]=mergeLists(DB[k],r[k],gone)});
+  const wiped=Object.assign({},r.wiped||{});
+  Object.keys(DB.wiped||{}).forEach(k=>{if(!(wiped[k]>=DB.wiped[k]))wiped[k]=DB.wiped[k]});
+  DB.wiped=wiped;
+  SYNCED.forEach(k=>{DB[k]=mergeLists(DB[k],r[k],gone,wiped[k])});
+  const f=foldDuplicates(DB.trades);
+  if(f.dropped.length){
+    const t=Date.now();
+    DB.trades=f.kept;
+    f.dropped.forEach(id=>gone.push({k:"trades",id,t}));
+  }
   DB.gone=gone;
   DB.trades.sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
   /* settings are one object, not a list, so the side touched last simply wins */
@@ -6551,6 +7064,10 @@ function mergeDB(remote){
     CFG_FP=cfgFP();
   }
   ["checks","map"].forEach(k=>{if(r[k]&&typeof r[k]==="object")DB[k]=Object.assign({},r[k],DB[k])});
+  {const dead=new Set(gone.filter(g=>g.k==="rules").map(g=>String(g.id)));
+   const all=[];[].concat(DB.rules||[],Array.isArray(r.rules)?r.rules:[]).forEach(x=>{
+     if(typeof x==="string"&&x.trim()&&!dead.has(x)&&!all.includes(x))all.push(x)});
+   DB.rules=all;}
   if(!DB.cutoff&&r.cutoff)DB.cutoff=r.cutoff;
   const added={};SYNCED.forEach(k=>added[k]=(DB[k]||[]).length-before[k]);
   return added;
@@ -6580,6 +7097,8 @@ function localAhead(remote){
       if(xm===tm&&richness(x)>richness(t))return true;
     }
   }
+  const rw=r.wiped||{};
+  if(Object.keys(DB.wiped||{}).some(k=>(+DB.wiped[k]||0)>(+rw[k]||0)))return true;
   const g={}; (r.gone||[]).forEach(x=>{if(x)g[x.k+"|"+x.id]=1});
   if((DB.gone||[]).some(x=>x&&!g[x.k+"|"+x.id]))return true;
   const mine=+((CFG.cloud||{}).cfgTouched)||0, theirs=+((r.cfg&&r.cfg.cloud&&r.cfg.cloud.cfgTouched))||0;
@@ -6589,6 +7108,8 @@ function localAhead(remote){
     if(Object.keys(a).some(x=>!(x in b)))return true;
   }
   if(DB.cutoff&&!r.cutoff)return true;
+  {const theirs=new Set(Array.isArray(r.rules)?r.rules:[]);
+   if((DB.rules||[]).some(x=>!theirs.has(x)))return true;}
   return false;
 }
 function cloudPack(){
@@ -6597,7 +7118,8 @@ function cloudPack(){
   return {format:"matin-journal-sync",version:1,app:APP_VERSION,
     saved:new Date().toISOString(),device:deviceName(),
     data:{trades:DB.trades,boxes:DB.boxes,money:DB.money,invests:DB.invests,
-          checks:DB.checks,map:DB.map,cutoff:DB.cutoff||"",gone:DB.gone||[],cfg:CFG}};
+          sessions:DB.sessions,rules:DB.rules,
+          checks:DB.checks,map:DB.map,cutoff:DB.cutoff||"",gone:DB.gone||[],wiped:DB.wiped||{},cfg:CFG}};
 }
 
 /* ---- talking to GitHub ---- */
@@ -7538,7 +8060,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.6";
+const APP_VERSION="1.0.0-beta.7";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

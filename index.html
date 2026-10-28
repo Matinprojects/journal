@@ -398,6 +398,13 @@ table.cmp td:first-child{color:var(--txt2)}
   .bxrep-in{box-shadow:none;margin:0;max-width:none}
   .bxrep-top .row{display:none}
 }
+.fcmain{display:flex;gap:18px;align-items:center;padding:16px 18px;border-radius:16px;border:1px solid var(--line2);background:rgba(10,9,8,.5)}
+.fcmain .fcbig{font:800 40px/1 "JetBrains Mono",monospace;min-width:96px;text-align:center}
+.fcmain.good .fcbig{color:#5FE0A6}.fcmain.warn .fcbig{color:#F2BB63}.fcmain.bad .fcbig{color:#F5716C}
+.rule.ruled{border-color:rgba(212,175,55,.4);background:rgba(212,175,55,.07)}
+.rule.ruled a{margin-left:7px;cursor:pointer;color:var(--dim);font-weight:700}
+.rule.ruled a:hover{color:#F5716C}
+.ruleopt b{color:var(--gold-lt)}
 .runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
@@ -1527,6 +1534,10 @@ table.cmp td:first-child{color:var(--txt2)}
       <div><label>Min trades per strategy</label><input type="number" id="n_cat" onchange="setNum('thresholds','cat',this.value)"></div>
       <div><label>Min trades per slice</label><input type="number" id="n_slice" onchange="setNum('thresholds','slice',this.value)"></div>
       <div><label>Default risk per trade ($)</label><input type="number" step="0.01" id="n_risk" onchange="setNum('risk','def',this.value)"></div>
+      <div style="grid-column:1/-1"><label class="row" style="gap:9px;align-items:center;margin:0;cursor:pointer">
+          <input type="checkbox" id="n_net" onchange="setCosts(this.checked)">
+          <span>Count commission and swap in P/L</span></label>
+        <div class="mini" style="margin-top:6px">A broker's Profit column is the price move alone; commission and swap are charged on top. With this on, every P/L, R, box balance and payout is net — what actually reached your account. Statements imported before this setting existed get their costs filled in the next time you import the same statement.</div></div>
       <div style="grid-column:1/-1;padding:12px 14px;border-radius:var(--r);background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.16)">
         <label class="row" style="gap:9px;align-items:center;margin:0;cursor:pointer">
           <input type="checkbox" id="n_rfixed" onchange="setFixedRisk(this.checked)">
@@ -1753,7 +1764,7 @@ function defaults(){return{
  adherence:[{name:"Followed",role:"full"},{name:"Partial",role:"partial"},{name:"Broke",role:"none"}],
  directions:[{name:"Buy"},{name:"Sell"}],
  thresholds:{total:30,cat:10,slice:8},
- risk:{def:0,minRR:1.5,dayR:2,weekR:6,beBand:0,beUnit:"usd",fixed:false,band:35},
+ risk:{def:0,minRR:1.5,dayR:2,weekR:6,beBand:0,beUnit:"usd",fixed:false,band:35,net:true},
  /* Your platform stamps trades in its server clock. Your charting app draws them in
     another. The two are rarely the same, and the gap is why a trade looks like it
     happened at the wrong candle. This is display only — nothing in the statistics moves. */
@@ -2018,7 +2029,7 @@ function runOf(t,bestPx,worstPx){
 
   /* How many dollars one point of price is worth on THIS trade. Taken from what the
      trade actually paid, which needs no lot size and no contract spec. */
-  const x=+t.exitp, pnl=+t.pnl;
+  const x=+t.exitp, pnl=(t.gross!==undefined&&t.gross!==""&&t.gross!==null)?+t.gross:+t.pnl;
   let perPoint = (x>0 && Math.abs(x-e)>1e-9 && isFinite(pnl) && pnl!==0)
     ? Math.abs(pnl)/Math.abs(x-e) : 0;
 
@@ -2227,7 +2238,7 @@ function saveSession(){
 const FIELDS=[["dtOpen","Open date-time"],["date","Date"],["time","Time"],["symbol","Symbol"],
   ["dir","Direction"],["entry","Entry price"],["sl","Stop loss"],["tp","Take profit"],["exitp","Exit price"],
   ["lot","Lot size"],["risk","Risk $"],["pnl","Profit / Loss $"],["dur","Duration (min)"],
-  ["dtClose","Close date-time"],["ticket","Ticket"],["mfe","MFE R"],["mae","MAE R"],["comment","Comment"]];
+  ["dtClose","Close date-time"],["ticket","Ticket"],["mfe","MFE R"],["mae","MAE R"],["comm","Commission"],["swap","Swap"],["comment","Comment"]];
 /* pasted text can be tab, comma, semicolon or column-aligned — detect which */
 const SEP="\u0001";
 /* a date and its time are one field, and "S / L" is one heading — shield both
@@ -2412,6 +2423,8 @@ function guessMap(head,rows){
     else if(k==="mfer"||k==="mfe")set("mfe");
     else if(k==="maer"||k==="mae")set("mae");
     else if(k==="comment"||k==="notes")set("comment");
+    else if(k==="commission"||k==="commissions"||k==="comm"||k==="fee"||k==="fees")set("comm");
+    else if(k==="swap"||k==="swaps"||k==="rollover"||k==="storage"||k==="financing")set("swap");
     else if(k==="strategy")set("strat");
     else if(k==="grade"||k==="setupgrade")set("grade");
     else if(k==="emotion")set("emo");
@@ -2498,7 +2511,13 @@ function rowToTrade(r,map,opt){
   if(!/^\d{1,2}:\d{2}/.test(time))time="12:00";
   time=time.slice(0,5).padStart(5,"0");
   const num=f=>{const v=g(f).replace(/[  , ]/g,"").replace(/[^\d.\-]/g,"");return v===""?"":+v};
-  const pnlv=num("pnl"); if(pnlv===""||isNaN(pnlv))return {skip:"nopnl"};
+  const gross=num("pnl"); if(gross===""||isNaN(gross))return {skip:"nopnl"};
+  /* A broker's Profit column is the price move alone. Commission and swap are charged
+     on top, and only the sum reached the account — so that sum is what everything
+     downstream (R, the box balance, the payout) has to be built on. */
+  const cv=num("comm"), sv=num("swap");
+  const comm=(cv===""||isNaN(cv))?null:cv, swp=(sv===""||isNaN(sv))?null:sv;
+  const pnlv=netOf(gross,comm,swp);
   const symRaw=(g("symbol")||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
   const known=names("symbols").find(s=>s.toUpperCase()===symRaw);
   const symbol=known||symRaw||"Other";
@@ -2524,6 +2543,7 @@ function rowToTrade(r,map,opt){
     strat:pick("strat",names("strategies")),grade:pick("grade",names("grades")),
     entry:entry||"",sl:sl||"",tp:num("tp")||"",exitp:num("exitp")||"",
     lot:lot||"",risk:rk,pnl:pnlv,r:pnlv/rk,result:pnlv>0?"Win":pnlv<0?"Loss":"BE",
+    gross,...(comm!==null?{comm}:{}),...(swp!==null?{swap:swp}:{}),
     ctime,cdate,
     dur:(dur===""||dur===undefined||isNaN(dur))?"":dur,exitreason:pick("exitreason",names("exits")),
     emo:pick("emo",names("states")),adh:pick("adh",names("adherence")),broke:pick("broke",names("breaks")),
@@ -2542,6 +2562,25 @@ function rowToTrade(r,map,opt){
       believe them over the statement. That is exact, and needs no guessing.
    2. Otherwise fall back to the median: a row whose risk collapsed well below what
       every other row shows was almost certainly trailed. */
+const costsOn=()=>((CFG||{}).risk||{}).net!==false;
+function netOf(gross,comm,swp){
+  gross=+gross||0;
+  return costsOn() ? +(gross+(+comm||0)+(+swp||0)).toFixed(2) : gross;
+}
+/* switching the setting, or learning a trade's costs later, re-derives P/L and R */
+function applyCosts(t){
+  if(!t||t.gross===undefined||t.gross===null||t.gross==="")return false;
+  const p=netOf(t.gross,t.comm,t.swap);
+  if(Math.abs(p-(+t.pnl||0))<0.005)return false;
+  t.pnl=p; t.r=t.risk>0?p/t.risk:0; t.result=p>0?"Win":p<0?"Loss":"BE";
+  return true;
+}
+function setCosts(on){
+  CFG.risk.net=!!on;
+  let n=0; DB.trades.forEach(t=>{if(applyCosts(t))n++});
+  save(); render();
+  toast(on?`Costs counted · ${n} trades updated`:`Costs ignored · ${n} trades updated`);
+}
 function fixedRisk(){
   const R=CFG.risk||{};
   return R.fixed&&+R.def>0 ? +R.def : 0;
@@ -2615,16 +2654,26 @@ function commitPaste(){
   reportIngest(res);
 }
 function ingest(list){
-  const R={added:0,dup:0,nontrade:0,nodate:0,nopnl:0,norisk:0,est:0,moved:0,before:0};
-  const keyOf=t=>t.ticket?("T"+t.ticket):(t.date+t.time+t.symbol+n2(t.pnl));
+  const R={added:0,dup:0,nontrade:0,nodate:0,nopnl:0,norisk:0,est:0,moved:0,before:0,costed:0};
+  const keyOf=t=>t.ticket?("T"+t.ticket):(t.date+t.time+t.symbol+n2(t.gross!==undefined&&t.gross!==""?t.gross:t.pnl));
   const have=new Set(DB.trades.map(keyOf));
+  const byKey={}; DB.trades.forEach(t=>byKey[keyOf(t)]=t);
   const cut=DB.cutoff||"";           // everything older than this is history, not this campaign
   list.forEach(t=>{
     if(!t){R.nodate++;return}
     if(t.skip){R[t.skip]=(R[t.skip]||0)+1;return}
     if(cut&&t.date<cut){R.before++;return}
     const k=keyOf(t);
-    if(have.has(k)){R.dup++;return}
+    if(have.has(k)){
+      /* imported before costs were read: learn them now, without touching his tags */
+      const old=byKey[k];
+      if(old&&old.comm===undefined&&old.swap===undefined&&(t.comm!==undefined||t.swap!==undefined)){
+        if(old.gross===undefined||old.gross==="")old.gross=+old.pnl||0;
+        if(t.comm!==undefined)old.comm=t.comm;
+        if(t.swap!==undefined)old.swap=t.swap;
+        applyCosts(old); R.costed++;
+      }
+      R.dup++;return}
     have.add(k);DB.trades.push(t);R.added++;if(t.riskEst)R.est++;if(t.moved)R.moved++;
   });
   DB.trades.sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
@@ -2632,9 +2681,9 @@ function ingest(list){
   return R;
 }
 function reportIngest(r,where){
-  toast(`${r.added} new trades imported`+(r.dup?` · ${r.dup} duplicates skipped`:""),r.added===0);
+  toast(`${r.added} new trades imported`+(r.dup?` · ${r.dup} duplicates skipped`:"")+(r.costed?` · costs added to ${r.costed}`:""),r.added===0&&!r.costed);
   const rows=[
-    ["Imported",r.added,"ok"],["Already in journal",r.dup,""],
+    ["Imported",r.added,"ok"],["Already in journal",r.dup,""],["Costs filled in",r.costed||0,"ok"],
     ["Before your start date",r.before,""],
     ["Balance / non-trade rows",r.nontrade,""],["No readable date",r.nodate,r.nodate?"warn":""],
     ["No profit / loss value",r.nopnl,r.nopnl?"warn":""],["No risk could be derived",r.norisk,r.norisk?"bad":""]
@@ -3297,6 +3346,7 @@ function renderEditors(){
   document.getElementById("n_week").value=CFG.risk.weekR;
   renderCloud();
   const rf=document.getElementById("n_rfixed"); if(rf)rf.checked=!!CFG.risk.fixed;
+  const nt=document.getElementById("n_net"); if(nt)nt.checked=CFG.risk.net!==false;
   const rb=document.getElementById("n_rband"); if(rb)rb.value=CFG.risk.band||35;
   const co=document.getElementById("n_choff"); if(co)co.value=((CFG.chart||{}).offset)||0;
   const ct=document.getElementById("clkTail"); if(ct)ct.textContent=chartOff()?offWord()+" against your platform":"not set";
@@ -3712,6 +3762,7 @@ const boxTrades=id=>DB.trades.filter(t=>t.box===id);
 function boxViolations(bx){
   const tr=boxTrades(bx.id), byDay={};
   tr.forEach(t=>{(byDay[t.date]=byDay[t.date]||[]).push(t)});
+  Object.values(byDay).forEach(d=>d.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||""))));
   const out=[];
   /* a box may arrive from an imported setup with these lists missing entirely */
   const okSym=Array.isArray(bx.symbols)?bx.symbols:[];
@@ -3730,6 +3781,12 @@ function boxViolations(bx){
       let acc=0;for(const x of day){if(x===t)break;acc+=x.r}
       if(acc<=-bx.dayR)v.push(`taken after the day was already ${n2(acc)}R down`);
     }
+    if(Array.isArray(bx.noWin)&&t.session&&bx.noWin.includes(t.session))v.push(`traded the ${esc(t.session)} window, which this box rules out`);
+    if(Array.isArray(bx.noStrat)&&t.strat&&bx.noStrat.includes(t.strat))v.push(`used ${esc(t.strat)}, which this box rules out`);
+    if(Array.isArray(bx.noState)&&t.emo&&bx.noState.includes(t.emo))v.push(`traded while ${esc(t.emo)}`);
+    if(bx.minGrade&&t.grade&&gradeRank(t.grade)>gradeRank(bx.minGrade))v.push(`a grade ${esc(t.grade)} setup, below the box's ${esc(bx.minGrade)}`);
+    if(+bx.pause>0){const m=minsAfterStop(t,day);
+      if(m!==null&&m<+bx.pause)v.push(`${Math.max(0,m)} min after a stop — the box asks for ${bx.pause}`);}
     if(v.length)out.push({t,v});
   });
   return out;
@@ -3805,7 +3862,7 @@ function renderBoxes(){
       <div class="big">No box open yet</div>
       <div class="mini">Decide how many trades you will take, and under what rules, before you take them.<br>That commitment is what turns a pile of trades into an experiment.</div>
     </div></div>`;
-    renderAccount(null);renderBoxHistory();return;
+    renderAccount(null);renderBoxHistory();renderBoxCompare();return;
   }
   const s=stats(boxTrades(bx.id)), p=boxPace(bx), vio=boxViolations(bx);
   const OB=boxObjectives(bx), VD=boxVerdict(bx);
@@ -3845,6 +3902,11 @@ function renderBoxes(){
           ${bx.cap>0?`<div class="rule">Max <b>${bx.cap}</b>/day</div>`:""}
           ${bx.dayR>0?`<div class="rule">Stop at <b>−${n2(bx.dayR)}R</b>/day</div>`:""}
           ${bx.maxLoss>0?`<div class="rule">Stop after <b>${bx.maxLoss}</b> losses</div>`:""}
+          ${(bx.noWin||[]).map(x=>`<div class="rule ruled">No <b>${esc(x)}</b> window<a onclick="removeBoxRule('${jsq(bx.id)}','noWin','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
+          ${(bx.noStrat||[]).map(x=>`<div class="rule ruled">No <b>${esc(x)}</b><a onclick="removeBoxRule('${jsq(bx.id)}','noStrat','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
+          ${(bx.noState||[]).map(x=>`<div class="rule ruled">Not while <b>${esc(x)}</b><a onclick="removeBoxRule('${jsq(bx.id)}','noState','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
+          ${bx.minGrade?`<div class="rule ruled">Grade <b>${esc(bx.minGrade)}</b>+ only<a onclick="removeBoxRule('${jsq(bx.id)}','minGrade','')" title="Remove this rule">×</a></div>`:""}
+          ${+bx.pause>0?`<div class="rule ruled"><b>${bx.pause} min</b> pause after a stop<a onclick="removeBoxRule('${jsq(bx.id)}','pause','')" title="Remove this rule">×</a></div>`:""}
           ${bx.capital>0?`<div class="rule">Capital <b>$${n2(bx.capital)}</b></div>`:""}
           ${bx.payPct>0?`<div class="rule">Withdraw <b>${bx.payPct}%</b> weekly</div>`:""}
         </div>
@@ -3886,6 +3948,7 @@ function renderBoxes(){
     <div id="bxDay"></div>
   </div>
 
+  <div id="bxFc"></div>
   ${vio.length?`<div class="card">
     <h2><span class="dot"></span>Rule Breaks<span class="tail">${vio.length} of ${bx.count} trades</span></h2>
     <p class="hint">Not a scolding — a measurement. Compare the expectancy of these trades against the rest at the end of the box and you will know exactly what your rules are worth.</p>
@@ -3907,7 +3970,9 @@ function renderBoxes(){
   renderPayDesk(bx);
   drawBoxCalendar(bx);
   renderAccount(bx);
+  renderForecast(bx);
   renderBoxHistory();
+  renderBoxCompare();
 }
 /* Which box the Boxes tab is looking at, and which day is open. */
 let BXVIEW={id:"",day:"",editAcct:""};
@@ -4218,6 +4283,42 @@ const MEASURES={
   exits:  {label:()=>"Winners closed early"},
   custom: {label:k=>k}
 };
+/* A lesson only changes behaviour once it stops being advice. These are the lessons
+   that can be written as a rule the Trade Gate checks before the trade and the box
+   counts after it. */
+const gradeRank=g=>{const L=names("grades");const i=L.indexOf(g);return i<0?99:i};
+function ruleFor(key){
+  const [t,...r]=String(key).split(":"); const k=r.join(":");
+  if(t==="win")  return {f:"noWin",  v:k, say:`No trades in the ${k} window`};
+  if(t==="strat")return {f:"noStrat",v:k, say:`No ${k} setups`};
+  if(t==="state")return {f:"noState",v:k, say:`No trades while ${k}`};
+  if(t==="grade"){const L=names("grades"),i=L.indexOf(k);
+    return i>0?{f:"minGrade",v:L[i-1],say:`Grade ${L[i-1]} or better only`}:null}
+  if(t==="late") return {f:"cap",    v:Math.max(1,+k-1), say:`At most ${Math.max(1,+k-1)} trade${+k-1===1?"":"s"} a day`};
+  if(t==="after")return {f:"pause",  v:15, say:"15 minutes away from the screen after every stop"};
+  return null;
+}
+function applyRule(bx,R){
+  if(!bx||!R)return;
+  if(R.f==="noWin"||R.f==="noStrat"||R.f==="noState"){bx[R.f]=Array.isArray(bx[R.f])?bx[R.f]:[];if(!bx[R.f].includes(R.v))bx[R.f].push(R.v)}
+  else if(R.f==="cap")bx.cap=bx.cap>0?Math.min(bx.cap,R.v):R.v;
+  else if(R.f==="minGrade")bx.minGrade=bx.minGrade&&gradeRank(bx.minGrade)<gradeRank(R.v)?bx.minGrade:R.v;
+  else if(R.f==="pause")bx.pause=Math.max(+bx.pause||0,R.v);
+}
+function removeBoxRule(id,f,v){
+  const bx=boxes().find(b=>b.id===id); if(!bx)return;
+  if(Array.isArray(bx[f]))bx[f]=bx[f].filter(x=>x!==v); else bx[f]=f==="minGrade"?"":0;
+  save(); render(); toast("Rule removed");
+}
+/* minutes from the stop before this trade to this trade, the same day */
+function minsAfterStop(t,day){
+  const i=day.indexOf(t); if(i<1)return null;
+  const prev=day[i-1]; if(!isStop(prev))return null;
+  const mm=x=>{const m=String(x||"").match(/^(\d{1,2}):(\d{2})/);return m?+m[1]*60+ +m[2]:null};
+  const end=mm(prev.ctime)!==null?mm(prev.ctime):(mm(prev.time)!==null?mm(prev.time)+(+prev.dur||0):null);
+  const now=mm(t.time); if(end===null||now===null)return null;
+  return now-end;
+}
 function revengeSet(tr){
   const seq=tr.slice().sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
   const out=new Set();
@@ -4306,6 +4407,61 @@ function boxLessons(tr){
   return {list:out.concat(keep.slice(0,3)),S,minN};
 }
 /* the box before this one is what "better" is measured against */
+/* Van Tharp's System Quality Number: how far the average R sits from zero, measured
+   in units of its own noise. Sample capped at 100 so a huge box cannot buy a high score. */
+function sqn(tr){
+  const R=tr.map(t=>+t.r).filter(isFinite); if(R.length<10)return null;
+  const m=R.reduce((a,b)=>a+b,0)/R.length, sd=Math.sqrt(R.reduce((a,b)=>a+(b-m)*(b-m),0)/(R.length-1));
+  return sd>0?Math.sqrt(Math.min(R.length,100))*m/sd:null;
+}
+const sqnWord=v=>v===null?"—":v<1.6?"poor":v<2?"below average":v<2.5?"average":v<3?"good":v<5?"excellent":v<7?"superb":"exceptional";
+/* drawdown the way a funded account measures it: dollars from the account's peak,
+   and that loss as a share of what the account held at the peak */
+function ddMoney(bx,tr){
+  const seq=tr.slice().sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  const cap=+bx.capital||0; let c=0,pk=0,worst=0,atPeak=cap;
+  seq.forEach(t=>{c+=(+t.pnl||0);if(c>pk)pk=c;const d=pk-c;if(d>worst){worst=d;atPeak=cap+pk}});
+  return {usd:worst,pct:atPeak>0?worst/atPeak:null};
+}
+function boxRow(b){
+  const tr=boxTrades(b.id), S=stats(tr), q=sqn(tr), dm=ddMoney(b,tr);
+  const tg=tr.filter(t=>t.adh), full=adhName("full");
+  const L=boxLedger(b), paid=sum(L.weeks.map(w=>+w.withdrawn||0));
+  return {b,n:tr.length,S,q,dm,disc:tg.length?tg.filter(t=>t.adh===full).length/tg.length:null,paid};
+}
+function renderBoxCompare(){
+  const host=document.getElementById("boxCompare"); if(!host)return;
+  const rows=boxes().filter(b=>b&&b.start&&boxTrades(b.id).length)
+    .sort((a,b)=>a.start.localeCompare(b.start)).map(boxRow);
+  if(rows.length<2){host.innerHTML="";return}
+  const arrow=(a,b,up)=>a===null||b===null||!isFinite(a)||!isFinite(b)||Math.abs(b-a)<1e-9?"":
+    ((b>a)===up?'<span class="pos">▲</span>':'<span class="neg">▼</span>');
+  const first=rows[0].S.exp,last=rows[rows.length-1].S.exp;
+  const trend=last>first+0.05?["good","Your expectancy has risen from box to box."]
+             :last<first-0.05?["bad","Your expectancy is lower now than in your first box — the last report's lessons are the place to start."]
+             :["thin","Expectancy has held roughly level across your boxes."];
+  host.innerHTML=`<div class="bxcmp">
+    <div class="st" style="font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:8px">Every box, side by side<span class="mini" style="text-transform:none;letter-spacing:0;margin-left:8px">${rows.length} boxes</span></div>
+    <p class="hint">The point of running boxes is that each one should be a little better than the last. This is where you see whether that is happening. Arrows compare each box with the one before it.</p>
+    <div class="note" style="margin-bottom:12px"><span class="ic">◆</span><div><span class="vd ${trend[0]}">${trend[0]==="good"?"improving":trend[0]==="bad"?"slipping":"steady"}</span> ${trend[1]}</div></div>
+    <div class="scroll"><table class="cmp"><thead><tr><th>Box</th><th>Trades</th><th>Each</th><th>Win</th><th>PF</th><th>SQN</th>
+      <th>Drawdown</th><th>Discipline</th><th>Net</th><th>Paid out</th><th></th></tr></thead><tbody>
+      ${rows.map((r,i)=>{const p=i?rows[i-1]:null;
+        return `<tr><td><b>${esc(r.b.name||"Box")}</b><div class="mini">${esc(r.b.start)}${r.b.closed?" → "+esc(r.b.closed):" → now"}</div></td>
+        <td class="mono">${r.n}</td>
+        <td class="mono ${cls(r.S.exp)}">${n2(r.S.exp)}R ${p?arrow(p.S.exp,r.S.exp,true):""}</td>
+        <td class="mono">${pct(r.S.wr)} ${p?arrow(p.S.wr,r.S.wr,true):""}</td>
+        <td class="mono">${r.S.pf>=99?"∞":n2(r.S.pf)}</td>
+        <td class="mono" title="${sqnWord(r.q)}">${r.q===null?"—":n2(r.q)} ${p?arrow(p.q,r.q,true):""}<div class="mini">${sqnWord(r.q)}</div></td>
+        <td class="mono neg">${n2(-Math.abs(r.S.dd))}R ${p?arrow(Math.abs(p.S.dd),Math.abs(r.S.dd),false):""}${r.dm.pct!==null?`<div class="mini">${pct(r.dm.pct)} of account</div>`:""}</td>
+        <td class="mono">${r.disc===null?"—":pct(r.disc)} ${p?arrow(p.disc,r.disc,true):""}</td>
+        <td class="mono ${cls(r.S.pnl)}">${r.S.pnl<0?"−":""}$${n2(Math.abs(r.S.pnl))}</td>
+        <td class="mono">${r.paid>0?"$"+n2(r.paid):"—"}</td>
+        <td><button class="btn sec sm" onclick="openBoxReport('${jsq(r.b.id)}')">Report</button></td></tr>`}).join("")}
+    </tbody></table></div>
+    <div class="mini" style="margin-top:8px">SQN — Van Tharp's System Quality Number: average R divided by its spread, scaled by the square root of the trade count. Below 1.6 is poor, 2.5–3 good, above 3 excellent. It needs ten trades.</div>
+  </div>`;
+}
 function prevBox(bx){
   const bs=boxes().filter(b=>b&&b.id!==bx.id&&b.start&&b.start<=bx.start&&boxTrades(b.id).length)
     .sort((a,b)=>a.start.localeCompare(b.start));
@@ -4331,6 +4487,96 @@ function judgeLesson(L,tr){
   return {v:"bad",w:"not applied",now};
 }
 
+/* ---------- where the open box is heading ----------
+   A prop firm does not ask "are you profitable?" — it asks "how likely is this
+   account to reach the target before it reaches the loss limit?". That is a
+   question about paths, not averages, so it is answered by replaying the rest of
+   the box thousands of times from his own results, in random order. */
+function boxForecast(bx,runs){
+  runs=runs||3000;
+  const tr=boxTrades(bx.id).slice().sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  let pool=tr.map(t=>+t.r).filter(isFinite), source="this box";
+  if(pool.length<15){
+    const all=DB.trades.map(t=>+t.r).filter(isFinite);
+    if(all.length<30)return {thin:true,have:pool.length};
+    pool=all; source="your whole journal";
+  }
+  const mode=bx.mode||"trades";
+  const days=[...new Set(tr.map(t=>t.date))].length;
+  const perDay=tr.length&&days?tr.length/days:3;
+  let left;
+  if(mode==="trades"||mode==="either")left=Math.max(0,(+bx.target||0)-tr.length);
+  if(mode!=="trades"&&bx.endPlanned){
+    const now=new Date(todayStr()+"T00:00:00"), end=new Date(bx.endPlanned+"T00:00:00");
+    let wd=0;for(let d=new Date(now);d<=end;d.setDate(d.getDate()+1)){const g=d.getDay();if(g!==0&&g!==6)wd++}
+    const byDate=Math.round(wd*perDay);
+    left=mode==="days"?byDate:Math.min(left===undefined?byDate:left,byDate);
+  }
+  left=left||0;
+  /* a box planned to run for years would freeze the page; past a few hundred trades the
+     spread says nothing new anyway, so the horizon is capped and the card says so */
+  const capped=left>600; if(capped)left=600;
+  /* where the box stands now */
+  let cum=0,peak=0;tr.forEach(t=>{cum+=(+t.r||0);peak=Math.max(peak,cum)});
+  const curDD=peak-cum;
+  const tgt=+bx.targetR||0, lim=+bx.maxDD||0;
+  const L=boxLedger(bx);
+  const usd=+L.nextRisk||+bx.r0||+CFG.risk.def||(tr.length?tr.reduce((a,t)=>a+(+t.risk||0),0)/tr.length:25);
+  const perWeek=Math.max(1,Math.round(perDay*5));
+  const payPct=(+bx.payPct||0)/100;
+  const finals=[],pays=[];let pass=0,bust=0,pos=0,hitT=0;
+  for(let k=0;k<runs;k++){
+    let c=cum,pk=peak,busted=false,reached=tgt>0&&cum>=tgt,wk=0,inWk=0,pay=0;
+    for(let i=0;i<left;i++){
+      const r=pool[(Math.random()*pool.length)|0];
+      c+=r; wk+=r; inWk++;
+      if(c>pk)pk=c;
+      if(lim>0&&pk-c>=lim){busted=true;break}
+      if(tgt>0&&c>=tgt)reached=true;
+      if(inWk>=perWeek){if(wk>0)pay+=wk*usd*payPct;wk=0;inWk=0}
+    }
+    if(!busted&&inWk&&wk>0)pay+=wk*usd*payPct;
+    finals.push(c);pays.push(pay);
+    if(busted)bust++;
+    if(reached)hitT++;
+    if(!busted&&c>0)pos++;
+    if(!busted&&(tgt>0?reached:c>0))pass++;
+  }
+  finals.sort((a,b)=>a-b);pays.sort((a,b)=>a-b);
+  const q=(a,p)=>a[Math.min(a.length-1,Math.max(0,Math.floor(p*a.length)))];
+  return {runs,left,capped,source,n:pool.length,cum,curDD,tgt,lim,usd,perWeek,
+    pPass:pass/runs,pBust:bust/runs,pPos:pos/runs,pTarget:hitT/runs,
+    p10:q(finals,.1),p50:q(finals,.5),p90:q(finals,.9),
+    pay50:q(pays,.5),pay10:q(pays,.1),pay90:q(pays,.9)};
+}
+function renderForecast(bx){
+  const host=document.getElementById("bxFc"); if(!host)return;
+  if(!bx||bx.status!=="active"){host.innerHTML="";return}
+  const F=boxForecast(bx);
+  if(F.thin){host.innerHTML=`<div class="card"><h2><span class="dot"></span>Where This Box Is Heading</h2>
+    <div class="mini">The forecast needs 15 trades in this box, or 30 in the journal. You have ${F.have}.</div></div>`;return}
+  if(!F.left){host.innerHTML="";return}
+  const pc=x=>Math.round(x*100)+"%";
+  const tone=F.pPass>=0.7?"good":F.pPass>=0.45?"warn":"bad";
+  const say=F.tgt>0
+    ? `${pc(F.pPass)} chance of reaching <b>+${n2(F.tgt)}R</b>${F.lim>0?` without first losing ${n2(F.lim)}R from a peak`:""}.`
+    : `${pc(F.pPass)} chance of finishing the box in profit${F.lim>0?` without breaching the ${n2(F.lim)}R drawdown limit`:""}.`;
+  host.innerHTML=`<div class="card">
+    <h2><span class="dot"></span>Where This Box Is Heading<span class="tail">${F.runs.toLocaleString()} replays of the ${F.capped?"next":"last"} ${F.left} trades</span></h2>
+    <p class="hint">Your results so far, reshuffled thousands of times to play out the rest of the box. Not a prediction of any one path — the spread of where paths like yours end up.</p>
+    <div class="fcmain ${tone}"><div class="fcbig">${pc(F.pPass)}</div><div>${say}
+      ${F.lim>0?`<div class="mini" style="margin-top:4px">${pc(F.pBust)} of replays hit the drawdown limit first${F.curDD>0?` — you are ${n2(F.curDD)}R below your peak right now`:""}.</div>`:""}</div></div>
+    <div class="kpgrid" style="margin-top:14px">
+      <div class="kp"><div class="l">Likely finish</div><div class="v ${cls(F.p50)}">${n2(F.p50)}R</div><div class="s">≈ ${F.p50<0?"−":""}$${n2(Math.abs(F.p50*F.usd))} at $${n2(F.usd)} a trade</div></div>
+      <div class="kp"><div class="l">Bad case · 1 in 10</div><div class="v ${cls(F.p10)}">${n2(F.p10)}R</div><div class="s">≈ ${F.p10<0?"−":""}$${n2(Math.abs(F.p10*F.usd))}</div></div>
+      <div class="kp"><div class="l">Good case · 1 in 10</div><div class="v ${cls(F.p90)}">${n2(F.p90)}R</div><div class="s">≈ $${n2(F.p90*F.usd)}</div></div>
+      ${(+bx.payPct||0)>0?`<div class="kp"><div class="l">Payouts still to come</div><div class="v pos">$${n2(F.pay50)}</div>
+        <div class="s">between $${n2(F.pay10)} and $${n2(F.pay90)}</div></div>`:""}
+    </div>
+    <div class="mini" style="margin-top:10px">Drawn from ${F.n} trades of ${F.source}. ${F.source!=="this box"?"This box is still too young to stand on its own numbers.":""}
+      ${F.n<60?"With this few trades the spread is wide on purpose — it narrows as the box fills.":""}</div>
+  </div>`;
+}
 let BXR={id:"",tab:"all"};
 function openBoxReport(id){
   const bx=boxes().find(b=>b.id===id); if(!bx)return;
@@ -4435,7 +4681,9 @@ function renderBoxReport(){
     ${kpi("Win rate",pct(S.wr),"",`${tr.filter(t=>t.pnl>0).length} won · ${tr.filter(isStop).length} stopped`)}
     ${kpi("Profit factor",S.pf>=99?"∞":n2(S.pf),S.pf>=1?"pos":"neg","")}
     ${kpi("Avg win / loss",n2(S.aw)+" / "+n2(S.al)+"R","",`payoff ${n2(S.payoff)}`)}
-    ${kpi("Deepest drawdown",n2(-Math.abs(S.dd))+"R","neg",`longest losing run ${S.maxLS}`)}
+    ${(()=>{const dm=ddMoney(bx,tr);return kpi("Deepest drawdown",n2(-Math.abs(S.dd))+"R","neg",
+       `−$${n2(dm.usd)}${dm.pct!==null?" · "+pct(dm.pct)+" of the account at its peak":""} · longest losing run ${S.maxLS}`)})()}
+    ${(()=>{const q=sqn(tr);return kpi("SQN",q===null?"—":n2(q),q===null?"":q>=2.5?"pos":q<1.6?"neg":"",q===null?"needs 10 trades":sqnWord(q)+" · system quality")})()}
     ${kpi("Discipline",disc===null?"—":pct(disc),disc!==null&&disc>=0.85?"pos":disc!==null&&disc<0.7?"neg":"",tagged.length?`${followed.length} of ${tagged.length} by the plan`:"tag adherence to see this")}
     ${kpi("Rule breaks",String(vio.length),vio.length?"neg":"pos",vio.length?"trades outside the box's rules":"none")}
     ${kpi("Trades a day",n2(tr.length/Math.max(1,days)),"","")}
@@ -4483,6 +4731,11 @@ function renderBoxReport(){
           <span class="mono ${cls(l.totR)}">${n2(l.totR)}R<small> · ${l.n} trades</small></span></div>
         <p>${l.why}</p>
         <div class="rpfix"><span class="k">${l.kind==="strength"?"Keep":"Next box"}</span>${l.fix}</div>
+        ${(()=>{const R=l.kind==="leak"?ruleFor(l.key):null; if(!R)return "";
+          const on=(bx.carry||[]).some(c=>c.key===l.key&&c.rule);
+          return `<label class="row mini ruleopt" style="gap:7px;margin-top:8px;cursor:pointer">
+            <input type="checkbox" ${on?"checked":""} onchange="toggleRule('${jsq(l.key)}',this.checked)">
+            <span>Make it a rule: <b>${esc(R.say)}</b> — the Trade Gate will refuse it</span></label>`})()}
         ${l.p!==undefined?`<div class="mini" style="margin-top:6px">How sure: <span class="vd ${l.p<0.05?"good":l.p<0.15?"warn":"thin"}">${pWord(l.p)}</span></div>`:""}
       </div>`).join("")}
     <div class="lesson own">
@@ -4538,6 +4791,14 @@ function toggleCarry(key,on){
     if(L)bx.carry.push({key:L.key,kind:L.kind,title:L.title,fix:L.fix,was:measure(L.key,boxTrades(bx.id)),from:bx.id,fromName:bx.name});
   }
   save(); renderBoxReport(); renderBoxes&&renderBoxes();
+}
+function toggleRule(key,on){
+  const bx=boxes().find(b=>b.id===BXR.id); if(!bx)return;
+  if(on&&!(bx.carry||[]).some(c=>c.key===key))toggleCarry(key,true);
+  const c=(bx.carry||[]).find(c=>c.key===key); if(!c)return;
+  c.rule=on?ruleFor(key):null;
+  save(); renderBoxReport();
+  toast(on?"It will be a rule in your next box":"Back to a reminder");
 }
 function addOwnLesson(){
   const i=document.getElementById("bxOwnLesson"), v=(i&&i.value||"").trim(); if(!v)return;
@@ -4900,23 +5161,6 @@ function bxPreset(){
     document.getElementById("bx_start").value=todayStr();
   toast("Plan loaded — adjust anything, then open the box");
 }
-function renderBoxCompare(){
-  const host=document.getElementById("boxCompare");if(!host)return;
-  const bs=boxes().filter(b=>(b.count||0)>0);
-  if(bs.length<2){host.innerHTML="";return}
-  const rows=bs.map(b=>({b,s:stats(boxTrades(b.id))}));
-  const mx=Math.max(...rows.map(r=>Math.abs(r.s.totR)),1);
-  host.innerHTML=`<div class="eyebrow" style="margin-bottom:10px">Box against box — total R</div>`+
-    rows.map((r,i)=>{const w=Math.abs(r.s.totR)/mx*50,pos=r.s.totR>=0;
-    return `<div class="cmp"><div class="cl">${esc(r.b.name)}</div>
-      <div class="ct"><div class="z" style="left:50%"></div>
-        <i data-w="${w.toFixed(1)}" data-l="${(pos?50:50-w).toFixed(1)}" style="left:50%;
-          background:${pos?"linear-gradient(90deg,#25A870,#5FE0A6)":"linear-gradient(90deg,#F5716C,#D93A35)"}"></i></div>
-      <div class="cv ${cls(r.s.totR)}">${n2(r.s.totR)}R</div></div>`}).join("")+
-    `<div class="mini" style="margin-top:8px">Expectancy by box: ${rows.map(r=>`${esc(r.b.name)} <b class="${cls(r.s.exp)}">${n2(r.s.exp)}R</b>`).join(" · ")}</div>`;
-  requestAnimationFrame(()=>host.querySelectorAll(".ct i").forEach(b=>{
-    b.style.left=b.dataset.l+"%";b.style.width=b.dataset.w+"%"}));
-}
 /* ---------- monthly goals ---------- */
 function saveGoals(){
   CFG.goals=Object.assign({monthR:0,monthLoss:0,monthUSD:0},CFG.goals,{
@@ -5013,6 +5257,7 @@ function createBox(){
   if(cur){cur.status="abandoned";cur.closed=todayStr()}
   const last=boxes().slice().sort((a,b)=>String(a.start).localeCompare(String(b.start))).pop();
   const carried=last&&Array.isArray(last.carry)?JSON.parse(JSON.stringify(last.carry)).map(c=>Object.assign(c,{done:false})):[];
+  const inherit=carried.filter(c=>c.rule).map(c=>c.rule);
   boxes().push({id:uid(),name,target,start,endPlanned,mode,closed:"",status:"active",carried,
     symbols:BXSEL.syms.slice(),strategies:BXSEL.strats.slice(),
     risk:+document.getElementById("bx_risk").value||0,
@@ -5030,6 +5275,8 @@ function createBox(){
     targetR:+document.getElementById("bx_tgtR").value||0,
     maxDD:+document.getElementById("bx_maxdd").value||0,
     cons:+document.getElementById("bx_cons").value||0});
+  {const nb=boxes()[boxes().length-1]; inherit.forEach(R=>applyRule(nb,R));
+   if(inherit.length)setTimeout(()=>toast(`${inherit.length} rule${inherit.length===1?"":"s"} carried in from ${last.name}`),300);}
   BXSEL={syms:[],strats:[]};
   BXVIEW={id:boxes()[boxes().length-1].id,day:""};
   document.getElementById("bx_name").value="";
@@ -5899,7 +6146,7 @@ function importAll(inp){
     const replace=haveN?confirm(msg):(confirm(msg)||true);
     if(haveN&&!replace){
       // merge: only trades that are not already here, config left alone
-      const keyOf=t=>t.ticket?("T"+t.ticket):(t.date+t.time+t.symbol+n2(t.pnl));
+      const keyOf=t=>t.ticket?("T"+t.ticket):(t.date+t.time+t.symbol+n2(t.gross!==undefined&&t.gross!==""?t.gross:t.pnl));
       const have=new Set(DB.trades.map(keyOf));
       let added=0;
       (d.trades||[]).forEach(t=>{const k=keyOf(t);if(!have.has(k)){have.add(k);DB.trades.push(t);added++}});
@@ -5940,12 +6187,13 @@ function renderBackup(){
 /* ============================================================
    EXPORT
    ============================================================ */
-const HEAD=["ID","Date","Time","CloseTime","Session","Day","Symbol","Direction","Strategy","Grade","Entry","SL","TP","Exit","Lot","Risk","PnL","R","Result","Duration","ExitReason","Emotion","Adherence","RuleBroken","TradeNoDay","MFE_R","MAE_R","News","Notes","Review","HasChart","Ticket"];
+const HEAD=["ID","Date","Time","CloseTime","Session","Day","Symbol","Direction","Strategy","Grade","Entry","SL","TP","Exit","Lot","Risk","PnL","R","Result","Duration","ExitReason","Emotion","Adherence","RuleBroken","TradeNoDay","MFE_R","MAE_R","News","Notes","Review","HasChart","Ticket","Gross","Commission","Swap"];
 function exportCSV(){
   const q=v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`;
   const rows=DB.trades.map((t,i)=>[i+1,t.date,t.time,(t.ctime||closeGuess(t)||""),t.session,t.day,t.symbol,t.dir,t.strat,t.grade,
     t.entry,t.sl,t.tp,t.exitp,t.lot,t.risk,t.pnl,n2(t.r),t.result,t.dur,t.exitreason,t.emo,t.adh,
-    t.broke,t.tradeNo,t.mfe,t.mae,t.news,t.notes,t.review,(t.shot?"yes":""),t.ticket].map(q).join(","));
+    t.broke,t.tradeNo,t.mfe,t.mae,t.news,t.notes,t.review,(t.shot?"yes":""),t.ticket,
+    (t.gross!==undefined?t.gross:""),(t.comm!==undefined?t.comm:""),(t.swap!==undefined?t.swap:"")].map(q).join(","));
   const csv="﻿"+HEAD.join(",")+"\n"+rows.join("\n");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
@@ -6264,6 +6512,26 @@ function gateState(){
   }else lines.push(["q","This window has paid",`only ${hs.n} trades — unknown`]);
 
   const bx=boxes().find(b=>b.status==="active");
+  if(bx){
+    if(blk&&Array.isArray(bx.noWin)&&bx.noWin.includes(blk.name)){bad++;
+      lines.push(["n","Box rule",`no trades in the ${blk.name} window`]);}
+    if(bx.minGrade&&blk&&grade&&gradeRank(grade)>gradeRank(bx.minGrade)){bad++;
+      lines.push(["n","Box rule",`grade ${bx.minGrade} or better — this window is ${grade}`]);}
+    if(+bx.cap>0){const ok=td.length<+bx.cap; if(!ok)bad++;
+      lines.push([ok?"y":"n","Box cap",`${td.length} of ${bx.cap} today`]);}
+    if(+bx.pause>0){
+      const seq=td.slice().sort((a,b)=>String(a.time||"").localeCompare(String(b.time||""))), last=seq[seq.length-1];
+      if(last&&isStop(last)){
+        const mm=x=>{const m=String(x||"").match(/^(\d{1,2}):(\d{2})/);return m?+m[1]*60+ +m[2]:null};
+        const end=mm(last.ctime)!==null?mm(last.ctime):(mm(last.time)!==null?mm(last.time)+(+last.dur||0):null);
+        const nowM=now.getHours()*60+now.getMinutes(), left=end===null?0:+bx.pause-(nowM-end);
+        if(left>0){bad++;lines.push(["n","Pause after a stop",`${left} more minute${left===1?"":"s"}`]);}
+        else lines.push(["y","Pause after a stop","done"]);
+      }
+    }
+    if(Array.isArray(bx.noStrat)&&bx.noStrat.length)lines.push(["q","Ruled out this box",bx.noStrat.join(", ")]);
+    if(Array.isArray(bx.noState)&&bx.noState.length)lines.push(["q","Not if you feel",bx.noState.join(", ")]);
+  }
   if(bx&&+bx.capital>0){
     const L=boxLedger(bx);
     lines.push(["y","Risk this trade",`$${n2(L.nextRisk||bx.r0||0)}`]);
@@ -8060,7 +8328,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.7";
+const APP_VERSION="1.0.0-beta.8";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

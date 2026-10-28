@@ -424,6 +424,37 @@ details.howto .hw b{color:var(--txt);font-weight:600}
 details.howto[dir="rtl"]{font-family:Tahoma,"Vazirmatn",sans-serif}
 .kpi .kh{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.35}
 @media (max-width:760px){details.howto .hw{grid-template-columns:1fr;gap:2px}}
+.dsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.dsum>div{padding:11px 13px;border-radius:12px;background:rgba(10,9,8,.5);border:1px solid var(--line2);display:flex;flex-direction:column;gap:2px}
+.dsum .l,.st2{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.st2{margin-bottom:9px;color:var(--gold)}
+.dsum b{font:700 18px "JetBrains Mono",monospace}.dsum .s{font-size:11px;color:var(--dim)}
+.wkrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.wkc{padding:12px;border-radius:12px;border:1px solid var(--line2)}
+.wkc.best{outline:2px solid #5FE0A6;outline-offset:-2px}.wkc.worst{outline:2px solid #F5716C;outline-offset:-2px}
+.wkc .wn{font-weight:700;font-size:13px}.wkc .wa{font-size:20px;font-weight:800;margin:4px 0 2px;color:#fff}
+.wkc .ws{font-size:11px;color:rgba(255,255,255,.72)}
+.mcals{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.mcal{padding:12px;border-radius:14px;background:rgba(10,9,8,.45);border:1px solid var(--line2)}
+.mcal .mh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-size:13px}
+.mg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mg .wh{font-size:9.5px;color:var(--dim);text-align:center;letter-spacing:.06em;text-transform:uppercase}
+.mg .dc{position:relative;aspect-ratio:1;min-height:38px;border-radius:8px;background:rgba(255,255,255,.025);padding:4px 5px;display:flex;flex-direction:column;justify-content:space-between}
+.mg .dc.pad{background:none}
+.mg .dc .dn{font-size:9.5px;color:rgba(255,255,255,.55)}
+.mg .dc.on .dn{color:rgba(255,255,255,.8)}
+.mg .dc .dr{font:700 11.5px "JetBrains Mono",monospace;color:#fff;text-align:center}
+.mg .dc .dt{font-size:9px;color:rgba(255,255,255,.65);text-align:right}
+.mg .dc.on:hover{outline:1.5px solid var(--gold);outline-offset:1px;cursor:default}
+table.hxt{border-collapse:separate;border-spacing:4px;width:auto;min-width:100%}
+table.hxt th{font-size:10px;color:var(--dim);font-weight:600;padding:2px 4px;white-space:nowrap}
+table.hxt th.tot,table.hxt tr.totr th{color:var(--gold)}
+table.hxt td.hx{width:56px;min-width:52px;height:44px;border-radius:8px;background:rgba(255,255,255,.025);text-align:center;vertical-align:middle;padding:2px;position:relative}
+table.hxt td.hx .hv{display:block;font:700 12.5px "JetBrains Mono",monospace;color:#fff}
+table.hxt td.hx .hn{display:block;font-size:9.5px;color:rgba(255,255,255,.65)}
+table.hxt td.hx.tot{box-shadow:inset 0 0 0 1px rgba(212,175,55,.35)}
+table.hxt td.hx:hover{outline:1.5px solid var(--gold);outline-offset:1px}
+@media (max-width:760px){.mcals{grid-template-columns:1fr}.mg .dc .dr{font-size:10.5px}}
 .runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
@@ -1296,11 +1327,11 @@ details.howto[dir="rtl"]{font-family:Tahoma,"Vazirmatn",sans-serif}
   <div class="card rv" id="s-dist" style="--d:180ms"><h2><span class="dot"></span>R Distribution</h2><div id="dist"></div></div>
   <div class="card rv" id="s-daily" style="--d:210ms">
     <h2><span class="dot"></span>Daily Performance<span class="tail" id="calRange"></span></h2>
-    <p class="hint" style="margin-bottom:14px">Every trading day as one square, coloured by that day's total R. Clusters of red reveal bad stretches that a single number hides.</p>
+    <p class="hint" style="margin-bottom:14px">Every trading day with its own result, and every weekday added up. Clusters of red reveal bad stretches that a single number hides.</p>
     <div class="chartbox" id="calBox"><div id="cal"></div><div class="tip" id="calTip"></div></div>
   </div>
   <div class="card rv" id="s-heat" style="--d:240ms">
-    <h2><span class="dot"></span>Hour × Weekday<span class="tail">expectancy per slot</span></h2>
+    <h2><span class="dot"></span>Hour × Weekday<span class="tail">average R per trade</span></h2>
     <p class="hint" style="margin-bottom:14px">Where your edge actually lives in the week. Faded cells hold too few trades to trust yet.</p>
     <div class="chartbox" id="heatBox"><div id="heat"></div><div class="tip" id="heatTip"></div></div>
   </div>
@@ -2985,10 +3016,10 @@ const HELP={
  fa:["میانگین R هر ترید در آخرین چند ترید، که با هر ترید جدید یک قدم جلو می‌رود.","بالای خط صفر یعنی تریدهای اخیرت سودده بوده‌اند؛ زیرش یعنی ضررده. نشان می‌دهد لبهٔ معاملاتی‌ات کِی قوی‌تر یا ضعیف‌تر شد.","بالای صفر ماندن، بدون افت‌های طولانی زیر آن."]},
 "R Distribution":{en:["How often each result happened — how many trades ended at −1R, +1R, +2R and so on.","Bars on the right are wins, on the left losses. A tall bar beyond −1R means losses ran past your stop.","Losses stacked at about −1R and nothing much worse; wins spread out to the right."],
  fa:["هر نتیجه چند بار تکرار شده — چند ترید با −1R، +1R، +2R و … بسته شده.","میله‌های سمت راست بُرد، سمت چپ باخت. میلهٔ بلند فراتر از −1R یعنی ضررها از استاپت رد شده‌اند.","ضررها حدود −1R جمع شده باشند و بدتر نه؛ بُردها به سمت راست پخش باشند."]},
-"Daily Performance":{en:["Each trading day as one bar: how much R that day made or lost.","Look for clusters of red days — they usually share a cause (tired, news, overtrading).","Red days that stay small; no single day wiping out a week."],
- fa:["هر روز معاملاتی یک میله: آن روز چقدر R سود یا ضرر داد.","دنبال روزهای قرمزِ پشت‌سرهم بگرد — معمولاً یک دلیل مشترک دارند (خستگی، خبر، زیاد ترید کردن).","روزهای قرمز کوچک بمانند؛ هیچ روزی سود یک هفته را پاک نکند."]},
-"Hour × Weekday":{en:["A grid of hour of the day against day of the week, coloured by what you earned there.","Green squares are times that paid you, red ones cost you. Faded squares have too few trades to trust.","A clear green zone you can concentrate on, and red zones you can avoid."],
- fa:["جدولی از ساعت روز در برابر روز هفته، که رنگ هر خانه نشان می‌دهد آنجا چقدر درآوردی.","خانه‌های سبز زمان‌هایی‌اند که برایت سود داشتند، قرمزها ضرر. خانه‌های کم‌رنگ ترید کافی ندارند.","یک محدودهٔ سبز واضح که رویش تمرکز کنی، و محدوده‌های قرمز که از آن دوری کنی."]},
+"Daily Performance":{en:["Every trading day with its result, and every weekday added up.","The weekday cards say which day of the week pays you on average. In the calendar each day shows its total R and how many trades (3×); hover for dollars.","More green days than red, red days that stay small, and no weekday that keeps losing."],
+ fa:["هر روز معاملاتی با نتیجه‌اش، و جمع هر روز هفته.","کارت‌های روزهای هفته می‌گویند کدام روز هفته به‌طور میانگین برایت سود دارد. در تقویم، هر روز جمع R آن روز و تعداد تریدها (مثلاً 3×) را نشان می‌دهد؛ موس را نگه دار تا دلارش را ببینی.","روزهای سبز بیشتر از قرمز، روزهای قرمز کوچک، و هیچ روزی از هفته که مدام ضرر بدهد."]},
+"Hour × Weekday":{en:["Your average R per trade at each hour of each weekday.","Big number: average R per trade in that square. Small number: how many trades. The gold-edged last row and column total each hour and each day. Faded squares have under three trades.","A clear block of green hours to concentrate on, and red hours to stop trading."],
+ fa:["میانگین R هر ترید در هر ساعت از هر روز هفته.","عدد بزرگ: میانگین R هر ترید در آن خانه. عدد کوچک: تعداد ترید. سطر و ستون آخر با حاشیهٔ طلایی، جمع هر ساعت و هر روزند. خانه‌های کم‌رنگ کمتر از سه ترید دارند.","یک محدودهٔ روشن از ساعت‌های سبز برای تمرکز، و ساعت‌های قرمز برای کنار گذاشتن."]},
 "Trade Efficiency":{en:["For trades where you recorded how far price ran (MFE), how much of that move you actually kept.","A point far above the diagonal means price kept going after you closed — money left on the table.","Most winners closing close to the best price they reached."],
  fa:["برای تریدهایی که ثبت کردی قیمت تا کجا رفت (MFE): چقدر از آن حرکت را واقعاً برداشتی.","نقطه‌ای خیلی بالاتر از خط مورب یعنی بعد از بستن، قیمت ادامه داد — پولی که روی میز ماند.","بیشتر بُردها نزدیک بهترین قیمتی که دیدند بسته شده باشند."]},
 "Monthly Performance":{en:["Each calendar month: trades, win rate and R.","Compare months to see whether you are improving or whether one bad month carries the year.","Most months positive; losing months small."],
@@ -5989,65 +6020,96 @@ function drawRolling(tr){
   hookTip("roll","rollTip");
 }
 /* ---------- daily calendar heatmap ---------- */
+/* ---------- daily performance: a calendar you can read ----------
+   The old version was a GitHub-style strip of 13px squares with no numbers on them.
+   Here every trading day shows its own R in a month calendar, and above it each
+   weekday is summed so the question "which day of the week pays me?" is answered
+   directly. Green is profit, red is loss — the same colours as everywhere else. */
+const tone=(v,mx,faint)=>{if(v===null||v===undefined)return "";const k=Math.min(1,Math.abs(v)/(mx||1))*(faint?.45:1);
+  return v>=0?`rgba(63,207,142,${(.14+.62*k).toFixed(2)})`:`rgba(240,84,79,${(.14+.62*k).toFixed(2)})`};
 function drawCalendar(tr){
   const host=document.getElementById("cal"), lab=document.getElementById("calRange");
   if(!tr.length){host.innerHTML=EMPTY("No trades in view.");lab.textContent="";return}
-  const byDay={};
-  tr.forEach(t=>{(byDay[t.date]=byDay[t.date]||[]).push(t)});
+  const byDay={}; tr.forEach(t=>{if(t.date)(byDay[t.date]=byDay[t.date]||[]).push(t)});
   const days=Object.keys(byDay).sort();
-  const last=new Date(days[days.length-1]+"T00:00:00");
-  const start=new Date(last); start.setDate(start.getDate()-181);
-  const first=new Date(Math.max(new Date(days[0]+"T00:00:00"), start));
-  first.setDate(first.getDate()-first.getDay());                    // back to Sunday
-  const cells=[]; const cur=new Date(first);
-  while(cur<=last){
-    const k=ymd(cur);
-    const dt=byDay[k];
-    cells.push({k,r:dt?sum(dt.map(x=>x.r)):null,n:dt?dt.length:0,pnl:dt?sum(dt.map(x=>x.pnl)):0});
-    cur.setDate(cur.getDate()+1);
-  }
-  const mx=Math.max(...cells.filter(c=>c.r!==null).map(c=>Math.abs(c.r)),1);
-  lab.textContent=cells[0].k+" → "+cells[cells.length-1].k;
-  host.innerHTML=`<div class="calwrap">
-    <div class="callab">${["","Mon","","Wed","","Fri",""].map(d=>`<span>${d}</span>`).join("")}</div>
-    <div class="cal">${cells.map((c,i)=>c.r===null
-      ? `<div class="cell" style="--d:${Math.min(i*2,700)}ms"></div>`
-      : `<div class="cell" style="--d:${Math.min(i*2,700)}ms;background:${heatColor(c.r,mx)}"
-           data-tip="<b class='${cls(c.r)}'>${n2(c.r)}R</b> &nbsp;<span class='mini'>${c.k} · ${c.n} trade${c.n===1?"":"s"} · $${n2(c.pnl)}</span>"></div>`).join("")}</div>
-  </div>
-  <div class="scale"><span>loss</span>
-    ${[-1,-.55,-.2,0,.2,.55,1].map(v=>`<i style="background:${heatColor(v,1)}"></i>`).join("")}
-    <span>profit</span><span style="margin-left:auto">peak day ±${n2(mx)}R</span></div>`;
+  const D=days.map(k=>{const v=byDay[k];return {k,r:sum(v.map(x=>+x.r||0)),pnl:sum(v.map(x=>+x.pnl||0)),n:v.length,
+    w:v.filter(x=>x.pnl>0).length,dow:(new Date(k+"T00:00:00").getDay()+6)%7}});
+  lab.textContent=days[0]+" → "+days[days.length-1];
+  const green=D.filter(d=>d.r>0).length, red=D.filter(d=>d.r<0).length;
+  const best=D.reduce((a,b)=>b.r>a.r?b:a), worst=D.reduce((a,b)=>b.r<a.r?b:a);
+  let streak=0,sk=0;for(let i=D.length-1;i>=0;i--){const s=Math.sign(D[i].r);if(!s)continue;if(!sk)sk=s;if(s===sk)streak++;else break}
+  const WD=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const wk=WD.map((name,i)=>{const L=D.filter(d=>d.dow===i);return {name,L,tot:sum(L.map(d=>d.r)),avg:L.length?sum(L.map(d=>d.r))/L.length:0,
+    gp:L.length?L.filter(d=>d.r>0).length/L.length:0,usd:sum(L.map(d=>d.pnl))}}).filter(x=>x.L.length);
+  const wmx=Math.max(...wk.map(x=>Math.abs(x.avg)),0.3);
+  const bestW=wk.length>1?wk.reduce((a,b)=>b.avg>a.avg?b:a):null, worstW=wk.length>1?wk.reduce((a,b)=>b.avg<a.avg?b:a):null;
+  const mx=Math.max(...D.map(d=>Math.abs(d.r)),1);
+  /* months, newest first, at most six */
+  const months=[...new Set(days.map(k=>k.slice(0,7)))].sort().reverse().slice(0,6);
+  const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monthHTML=ym=>{
+    const [y,m]=ym.split("-").map(Number), first=new Date(y,m-1,1), nd=new Date(y,m,0).getDate();
+    const lead=(first.getDay()+6)%7, mD=D.filter(d=>d.k.slice(0,7)===ym);
+    const mr=sum(mD.map(d=>d.r)), mu=sum(mD.map(d=>d.pnl));
+    let cells="";for(let i=0;i<lead;i++)cells+=`<div class="dc pad"></div>`;
+    for(let d=1;d<=nd;d++){const k=ym+"-"+String(d).padStart(2,"0"), x=byDay[k]?D.find(z=>z.k===k):null;
+      cells+=x?`<div class="dc on" style="background:${tone(x.r,mx)}"
+        data-tip="<b class='${cls(x.r)}'>${n2(x.r)}R</b> &nbsp;<span class='mini'>${k} · ${x.n} trade${x.n===1?"":"s"} · ${x.w} won · ${x.pnl<0?"−":""}$${n2(Math.abs(x.pnl))}</span>">
+        <span class="dn">${d}</span><span class="dr">${x.r>0?"+":""}${n2(x.r)}</span><span class="dt">${x.n}×</span></div>`
+        :`<div class="dc"><span class="dn">${d}</span></div>`}
+    return `<div class="mcal"><div class="mh"><b>${MN[m-1]} ${y}</b><span class="mono ${cls(mr)}">${mr>0?"+":""}${n2(mr)}R · ${mu<0?"−":""}$${n2(Math.abs(mu))}</span></div>
+      <div class="mg">${WD.map(w=>`<div class="wh">${w}</div>`).join("")}${cells}</div></div>`;
+  };
+  host.innerHTML=`
+    <div class="dsum">
+      <div><span class="l">Green days</span><b class="pos">${green}</b><span class="s">${pct(green/Math.max(1,green+red))} of days</span></div>
+      <div><span class="l">Red days</span><b class="neg">${red}</b></div>
+      <div><span class="l">Best day</span><b class="pos">+${n2(best.r)}R</b><span class="s">${best.k}</span></div>
+      <div><span class="l">Worst day</span><b class="neg">${n2(worst.r)}R</b><span class="s">${worst.k}</span></div>
+      <div><span class="l">Average day</span><b class="${cls(sum(D.map(d=>d.r))/D.length)}">${n2(sum(D.map(d=>d.r))/D.length)}R</b></div>
+      <div><span class="l">Right now</span><b class="${sk>0?"pos":"neg"}">${streak} ${sk>0?"green":"red"}</b><span class="s">day${streak===1?"":"s"} in a row</span></div>
+    </div>
+    <div class="st2">Which day of the week pays you</div>
+    <div class="wkrow">${wk.map(x=>`<div class="wkc ${x===bestW?"best":x===worstW?"worst":""}" style="background:${tone(x.avg,wmx,x.L.length<4)}">
+      <div class="wn">${x.name}${x===bestW?' <span class="tag g">best</span>':x===worstW?' <span class="tag r">worst</span>':""}</div>
+      <div class="wa mono">${x.avg>0?"+":""}${n2(x.avg)}R</div><div class="ws">a day · ${x.L.length} day${x.L.length===1?"":"s"}</div>
+      <div class="ws">${pct(x.gp)} green · ${n2(x.tot)}R total</div></div>`).join("")}</div>
+    ${wk.some(x=>x.L.length<4)?`<div class="mini" style="margin-top:6px">Faded weekdays have fewer than four trading days behind them.</div>`:""}
+    <div class="st2" style="margin-top:20px">Day by day</div>
+    <div class="mcals">${months.map(monthHTML).join("")}</div>
+    ${[...new Set(days.map(k=>k.slice(0,7)))].length>6?`<div class="mini" style="margin-top:8px">Showing the latest six months. Narrow the period in Filters to see older ones.</div>`:""}`;
   hookTip("cal","calTip");
 }
-/* ---------- hour × weekday heatmap ---------- */
+/* ---------- hour × weekday: a table with its numbers on it ---------- */
 function drawHeat(tr){
   const host=document.getElementById("heat");
+  host.className="";host.style.gridTemplateColumns="";
   if(tr.length<10){host.innerHTML=EMPTY("Needs at least 10 trades in view.");return}
-  const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const grid={};
-  tr.forEach(t=>{const h=+String(t.time).slice(0,2)||0;const k=t.day+"|"+h;(grid[k]=grid[k]||[]).push(t)});
-  const cells=Object.entries(grid).map(([k,v])=>({k,exp:avg(v.map(x=>x.r)),n:v.length}));
-  const mx=Math.max(...cells.map(c=>Math.abs(c.exp)),0.2);
-  const active=DAYS.filter(d=>tr.some(t=>t.day===d));
-  const hrs=[...new Set(tr.map(t=>+String(t.time).slice(0,2)||0))].sort((a,b)=>a-b);
-  const h0=Math.max(0,Math.min(...hrs)), h1=Math.min(23,Math.max(...hrs));
-  const span=h1-h0+1;
-  host.style.gridTemplateColumns=`34px repeat(${span},1fr)`;
-  let html=`<div class="hl"></div>`+Array.from({length:span},(_,i)=>
-    `<div class="hl" style="text-align:center">${(h0+i)%3===0?String(h0+i).padStart(2,"0"):""}</div>`).join("");
-  active.forEach((d,di)=>{
-    html+=`<div class="hl">${d}</div>`;
-    for(let h=h0;h<=h1;h++){
-      const c=cells.find(x=>x.k===d+"|"+h);
-      const dl=(di*span+(h-h0))*3;
-      html+=c
-        ? `<div class="hc" style="--d:${Math.min(dl,900)}ms;background:${heatColor(c.exp,mx)};opacity:${c.n<3?".45":"1"}"
-             data-tip="<b class='${cls(c.exp)}'>${n2(c.exp)}R</b> avg &nbsp;<span class='mini'>${d} ${String(h).padStart(2,"0")}:00 · ${c.n} trade${c.n===1?"":"s"}</span>"></div>`
-        : `<div class="hc" style="--d:${Math.min(dl,900)}ms"></div>`;
-    }
-  });
-  host.innerHTML=html;
+  const WD=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const dayOf=t=>t.date?WD[(new Date(t.date+"T00:00:00").getDay()+6)%7]:"";
+  const hourOf=t=>{const m=String(t.time||"").match(/^(\d{1,2}):/);return m?+m[1]:null};
+  const ok=tr.filter(t=>dayOf(t)&&hourOf(t)!==null);
+  const days=WD.filter(d=>ok.some(t=>dayOf(t)===d));
+  const hrs=[...new Set(ok.map(hourOf))].sort((a,b)=>a-b);
+  const cell=(d,h)=>ok.filter(t=>(d===null||dayOf(t)===d)&&(h===null||hourOf(t)===h));
+  const all=[];days.forEach(d=>hrs.forEach(h=>{const v=cell(d,h);if(v.length)all.push({d,h,s:stats(v)})}));
+  const mx=Math.max(...all.map(c=>Math.abs(c.s.exp)),0.3);
+  const solid=all.filter(c=>c.s.n>=3);
+  const best=solid.length?solid.reduce((a,b)=>b.s.exp>a.s.exp?b:a):null, worst=solid.length?solid.reduce((a,b)=>b.s.exp<a.s.exp?b:a):null;
+  const hh=h=>String(h).padStart(2,"0")+":00";
+  const box=(v,cl)=>{const s=stats(v);if(!s.n)return `<td class="hx ${cl||""}"></td>`;
+    return `<td class="hx ${cl||""}" style="background:${tone(s.exp,mx,s.n<3)}"
+      data-tip="<b class='${cls(s.exp)}'>${n2(s.exp)}R</b> a trade &nbsp;<span class='mini'>${s.n} trade${s.n===1?"":"s"} · ${pct(s.wr)} won · ${n2(s.totR)}R total</span>">
+      <span class="hv">${s.exp>0?"+":""}${n2(s.exp)}</span><span class="hn">${s.n}</span></td>`};
+  host.innerHTML=`
+    ${best&&worst&&best!==worst?`<div class="subverdict" style="margin-top:0">
+      <div><span class="l">Best</span><b>${best.d} ${hh(best.h)}</b> — ${n2(best.s.exp)}R a trade over ${best.s.n} trades</div>
+      <div><span class="l">Worst</span><b>${worst.d} ${hh(worst.h)}</b> — ${n2(worst.s.exp)}R a trade over ${worst.s.n} trades</div></div>`:""}
+    <div class="scroll"><table class="hxt"><thead><tr><th></th>${hrs.map(h=>`<th>${hh(h)}</th>`).join("")}<th class="tot">Day</th></tr></thead><tbody>
+      ${days.map(d=>`<tr><th>${d}</th>${hrs.map(h=>box(cell(d,h))).join("")}${box(cell(d,null),"tot")}</tr>`).join("")}
+      <tr class="totr"><th>Hour</th>${hrs.map(h=>box(cell(null,h),"tot")).join("")}${box(ok,"tot")}</tr>
+    </tbody></table></div>
+    <div class="mini" style="margin-top:8px">Each square: the big number is your average R per trade at that hour on that day, the small one how many trades it is built from. The last row and column add up each hour and each day. Faded squares have fewer than three trades. Hours are your platform's clock.</div>`;
   hookTip("heat","heatTip");
 }
 /* ---------- MFE efficiency scatter ---------- */
@@ -8780,7 +8842,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.10";
+const APP_VERSION="1.0.0-beta.11";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

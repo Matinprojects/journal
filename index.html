@@ -413,6 +413,17 @@ table.cmp td:first-child{color:var(--txt2)}
 .subverdict{display:grid;gap:6px;margin:14px 0 4px;font-size:13px;color:var(--txt2)}
 .subverdict .l{display:inline-block;min-width:52px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
 tr.thin td{opacity:.55}
+details.howto{margin:2px 0 14px;border:1px solid var(--line2);border-radius:12px;background:rgba(212,175,55,.035)}
+details.howto>summary{cursor:pointer;list-style:none;padding:8px 12px;font-size:11.5px;font-weight:600;color:var(--gold-lt)}
+details.howto>summary::-webkit-details-marker{display:none}
+details.howto>summary::before{content:"ⓘ";margin-right:7px;opacity:.8}
+details.howto[dir="rtl"]>summary::before{margin-right:0;margin-left:7px}
+details.howto[open]>summary{border-bottom:1px solid var(--line2)}
+details.howto .hw{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:8px 12px;font-size:12.5px;line-height:1.6;color:var(--txt2)}
+details.howto .hw b{color:var(--txt);font-weight:600}
+details.howto[dir="rtl"]{font-family:Tahoma,"Vazirmatn",sans-serif}
+.kpi .kh{font-size:10.5px;color:var(--dim);margin-top:4px;line-height:1.35}
+@media (max-width:760px){details.howto .hw{grid-template-columns:1fr;gap:2px}}
 .runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
@@ -1087,6 +1098,15 @@ tr.thin td{opacity:.55}
     <div id="mapUI"></div>
   </div>
   <div id="importReport"></div>
+  <div class="card rv" style="--d:85ms">
+    <h2><span class="dot"></span>Check Against Your Statement<span class="tail">reconciliation</span></h2>
+    <p class="hint">Not sure the journal's numbers match your broker's? Drop the same statement here. Nothing is imported or changed — the journal is lined up against the statement trade by trade, and every dollar of difference is given its reason.</p>
+    <label class="filedrop">
+      <input type="file" accept=".htm,.html,.csv,.txt,.tsv" onchange="reconFile(this)">
+      <span>Choose your MetaTrader statement</span>
+    </label>
+    <div id="reconOut"></div>
+  </div>
   <div class="card rv" style="--d:90ms">
     <h2><span class="dot"></span>Bulk Tag<span class="tail">Fastest route</span></h2>
     <p class="hint">If most trades in a session shared one strategy and one mental state, tag them all at once — then correct only the exceptions individually.</p>
@@ -1498,6 +1518,8 @@ tr.thin td{opacity:.55}
     <h2><span class="dot"></span>Make It Yours</h2>
     <p class="hint">Every option in this app is yours to change. Rename anything and your existing trades follow along automatically. Delete anything you don't use — historical trades keep their old labels so your statistics stay intact.</p>
     <div class="row">
+      <label class="mini" style="display:flex;align-items:center;gap:6px;margin-right:6px">Help text
+        <select id="helpLang" onchange="setHelpLang(this.value)" style="width:auto"><option value="en">English</option><option value="fa">فارسی</option></select></label>
       <button class="btn sec sm" onclick="exportCfg()">Export setup</button>
       <label class="btn sec sm" style="margin:0;cursor:pointer">Import setup<input type="file" accept=".json" onchange="importCfg(this)" style="display:none"></label>
       <button class="btn danger sm" onclick="resetCfg()">Reset to defaults</button>
@@ -1932,6 +1954,7 @@ function migrate(saved){
     list:(Array.isArray(saved.subs.list)?saved.subs.list:[]).filter(w=>w&&w.from&&w.to).map(w=>({from:String(w.from),to:String(w.to),name:String(w.name||"")}))};
   ["thresholds","risk","gate","payout","chart"].forEach(k=>{if(saved[k])out[k]=Object.assign(out[k],saved[k])});
   if(saved.product)out.product=saved.product;
+  if(saved.helpLang==="fa"||saved.helpLang==="en")out.helpLang=saved.helpLang;
   if(typeof saved.feedback==="string")out.feedback=saved.feedback;
   if(saved.goals)out.goals=Object.assign(out.goals||{},saved.goals);
   if(Array.isArray(saved.fields))out.fields=saved.fields
@@ -2835,6 +2858,247 @@ function importCSV(inp){
   };
   rd.readAsArrayBuffer(f);
 }
+/* ============================================================
+   RECONCILIATION — the journal against the broker, dollar by dollar
+   An accountant never says "the numbers look about right". Every difference
+   between two sets of books has a reason, and the reasons add up exactly.
+   ============================================================ */
+let RECON=null;
+function reconFile(inp){
+  const f=inp.files&&inp.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=e=>{try{reconText(decodeBuffer(e.target.result),f.name)}catch(err){toast("Could not read that file",1)} inp.value=""};
+  rd.readAsArrayBuffer(f);
+}
+function reconText(txt,name){
+  const out=document.getElementById("reconOut");
+  const g=parseGrid(txt); if(!g){if(out)out.innerHTML=`<div class="note warn"><span class="ic">!</span><div>No table of trades found in that file.</div></div>`;return}
+  const map=Object.assign(guessMap(g.head,g.rows),DB.map["m"+g.head.length]||{});
+  const rows=rowsToTrades(g.rows,map,{}).filter(t=>t&&!t.skip);
+  /* the broker's own bottom line, when the report prints one */
+  const plain=String(txt).replace(/<[^>]+>/g," ").replace(/&nbsp;/g," ").replace(/\s+/g," ");
+  const tm=plain.match(/Total Net Profit:?\s*(-?[\d\s.,]+)/i);
+  const brokerNet=tm?+tm[1].replace(/[\s,]/g,""):null;
+  RECON={name,rows,brokerNet};
+  renderRecon();
+}
+function reconcile(rows){
+  const N=t=>+(t.gross!==undefined&&t.gross!==""?t.gross:t.pnl)+(+t.comm||0)+(+t.swap||0);   // what reached the account
+  const G=t=>+(t.gross!==undefined&&t.gross!==""?t.gross:t.pnl);
+  const dates=rows.map(t=>t.date).filter(Boolean).sort();
+  const from=dates[0]||"", to=dates[dates.length-1]||"";
+  const byTk={}; DB.trades.forEach(t=>{if(t.ticket)byTk[String(t.ticket)]=t});
+  const deadT=new Set((DB.gone||[]).filter(x=>x.k==="trades").map(x=>String(x.id)));
+  const cut=DB.cutoff||"";
+  const B={match:[],costs:[],diff:[],before:[],missing:[],deleted:[],extra:[],outside:[]};
+  const seen=new Set();
+  rows.forEach(r=>{
+    const tk=String(r.ticket||""); const j=tk?byTk[tk]:null;
+    if(j){seen.add(j);
+      const jn=+j.pnl, sn=N(r), sg=G(r);
+      if(Math.abs(jn-sn)<0.011)B.match.push({r,j});
+      else if(Math.abs(jn-sg)<0.011&&Math.abs(sn-sg)>=0.011)B.costs.push({r,j,gap:sn-sg});
+      else B.diff.push({r,j,gap:sn-jn});
+      return;}
+    if(cut&&r.date<cut){B.before.push({r});return}
+    B.missing.push({r});
+  });
+  DB.trades.forEach(j=>{if(seen.has(j))return;
+    if(j.date>=from&&j.date<=to)B.extra.push({j}); else B.outside.push({j});});
+  const sum=(L,f)=>L.reduce((a,x)=>a+f(x),0);
+  const S={n:rows.length,gross:sum(rows,G),comm:sum(rows,r=>+r.comm||0),swap:sum(rows,r=>+r.swap||0)};
+  S.net=S.gross+S.comm+S.swap;
+  const inRange=DB.trades.filter(j=>j.date>=from&&j.date<=to);
+  const J={n:inRange.length,net:sum(inRange,j=>+j.pnl),all:sum(DB.trades,j=>+j.pnl),nAll:DB.trades.length};
+  return {B,S,J,from,to,N,G,sum};
+}
+function renderRecon(){
+  const out=document.getElementById("reconOut"); if(!out||!RECON)return;
+  const {B,S,J,from,to,N,sum}=reconcile(RECON.rows);
+  const $=v=>(v<0?"−$":"$")+n2(Math.abs(v));
+  const line=(label,cnt,usd,why,list,cls2)=>!cnt?"":`<tr class="${cls2||""}"><td>${label}<div class="mini">${why}</div></td>
+    <td class="mono">${cnt}</td><td class="mono ${cls(usd)}">${usd>=0?"+":""}${$(usd)}</td></tr>`;
+  const bBefore=sum(B.before,x=>N(x.r)), bMissing=sum(B.missing,x=>N(x.r));
+  const bCosts=sum(B.costs,x=>x.gap), bDiff=sum(B.diff,x=>x.gap), bExtra=sum(B.extra,x=>+x.j.pnl);
+  const explained=S.net-bBefore-bMissing-bCosts-bDiff+bExtra;
+  const left=J.net-explained;
+  const tl=(L,f)=>L.slice(0,12).map(f).join("")+(L.length>12?`<div class="mini">…and ${L.length-12} more</div>`:"");
+  out.innerHTML=`<div style="margin-top:16px">
+    <div class="mini" style="margin-bottom:8px">${esc(RECON.name||"Statement")} · ${esc(from)} → ${esc(to)}</div>
+    <div class="scroll"><table class="cmp"><thead><tr><th></th><th>Your statement</th><th>The journal, same dates</th></tr></thead><tbody>
+      <tr><td>Trades</td><td class="mono">${S.n}</td><td class="mono">${J.n}</td></tr>
+      <tr><td>Profit before costs</td><td class="mono">${$(S.gross)}</td><td class="mono">—</td></tr>
+      <tr><td>Commission</td><td class="mono">${$(S.comm)}</td><td class="mono">—</td></tr>
+      <tr><td>Swap</td><td class="mono">${$(S.swap)}</td><td class="mono">—</td></tr>
+      <tr><td><b>Net result</b></td><td class="mono"><b>${$(S.net)}</b></td><td class="mono"><b>${$(J.net)}</b></td></tr>
+      ${RECON.brokerNet!==null?`<tr><td class="mini">The statement's own "Total Net Profit" line</td><td class="mono mini">${$(RECON.brokerNet)}</td><td class="mini">${Math.abs(RECON.brokerNet-S.net)<1?"agrees with the trades above":"counts something besides closed trades — deposits or open positions are not trades"}</td></tr>`:""}
+    </tbody></table></div>
+
+    <div class="st" style="margin:18px 0 8px;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold)">Where the difference comes from</div>
+    <div class="scroll"><table><thead><tr><th>Statement net</th><th></th><th class="mono">${$(S.net)}</th></tr></thead><tbody>
+      ${line("Before your journal's start date",B.before.length,-bBefore,`Trades older than ${esc(DB.cutoff||"")}, left out on purpose — you chose to start the journal from that day.`)}
+      ${line("On the statement, missing from the journal",B.missing.length,-bMissing,"Never imported, or imported from a different statement. They can be added below.","neg")}
+      ${line("Commission and swap not yet counted",B.costs.length,-bCosts,"The journal holds these trades before costs. Re-importing the statement fills the costs in.")}
+      ${line("Same trade, different P/L",B.diff.length,-bDiff,"The journal and the statement disagree on these — listed below.","neg")}
+      ${line("In the journal, not on this statement",B.extra.length,bExtra,"Logged by hand, or from another account, within these dates.")}
+      <tr><td><b>The journal, same dates</b></td><td class="mono">${J.n}</td><td class="mono"><b>${$(J.net)}</b></td></tr>
+      ${Math.abs(left)>0.05?`<tr class="neg"><td>Unexplained</td><td></td><td class="mono">${$(left)}</td></tr>`:""}
+    </tbody></table></div>
+    ${Math.abs(left)<=0.05?`<div class="note ok" style="margin-top:12px"><span class="ic">✓</span><div>Every dollar of difference is accounted for.
+      ${!B.missing.length&&!B.diff.length&&!B.costs.length?"The journal matches your statement exactly for these dates.":""}</div></div>`:""}
+
+    ${B.outside.length?`<div class="mini" style="margin-top:10px">The journal also holds ${B.outside.length} trade${B.outside.length===1?"":"s"} outside this statement's dates (${$(sum(B.outside,x=>+x.j.pnl))}) — not part of this comparison. Across everything, the journal totals ${$(J.all)} over ${J.nAll} trades, which is the figure on the Dashboard.</div>`:
+      `<div class="mini" style="margin-top:10px">Across everything, the journal totals ${$(J.all)} over ${J.nAll} trades — the figure on the Dashboard.</div>`}
+
+    ${B.missing.length?`<div class="st" style="margin:18px 0 8px;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold)">Missing from the journal</div>
+      ${tl(B.missing,x=>`<div class="vio"><span class="d">${esc(x.r.date)} ${esc(x.r.time||"")}</span><span>#${esc(x.r.ticket||"")} ${esc(x.r.symbol||"")}</span><span class="d mono ${cls(N(x.r))}" style="margin-left:auto">${$(N(x.r))}</span></div>`)}
+      <button class="btn sm" style="margin-top:10px" onclick="reconAddMissing()">Add these ${B.missing.length} to the journal</button>`:""}
+    ${B.costs.length?`<button class="btn sec sm" style="margin-top:10px" onclick="reconFillCosts()">Fill in commission and swap for ${B.costs.length} trade${B.costs.length===1?"":"s"}</button>`:""}
+    ${B.diff.length?`<div class="st" style="margin:18px 0 8px;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--gold)">Same trade, different P/L</div>
+      ${tl(B.diff,x=>`<div class="vio"><span class="d">${esc(x.r.date)} ${esc(x.r.time||"")}</span><span>#${esc(x.r.ticket)} · statement ${$(N(x.r))} · journal ${$(+x.j.pnl)}</span>
+        <span class="d mono ${cls(x.gap)}" style="margin-left:auto">${x.gap>=0?"+":""}${$(x.gap)}</span></div>`)}`:""}
+  </div>`;
+}
+function reconAddMissing(){
+  if(!RECON)return; const {B}=reconcile(RECON.rows);
+  const res=ingest(B.missing.map(x=>x.r)); renderRecon(); toast(res.added+" trades added");
+}
+function reconFillCosts(){
+  if(!RECON)return; const {B}=reconcile(RECON.rows); let n=0;
+  B.costs.forEach(({r,j})=>{if(j.gross===undefined||j.gross==="")j.gross=+j.pnl;
+    if(r.comm!==undefined)j.comm=r.comm; if(r.swap!==undefined)j.swap=r.swap; if(applyCosts(j))n++});
+  save(); render(); renderRecon(); toast(n+" trades now net of costs");
+}
+/* ============================================================
+   HOW TO READ THIS — every number and chart, in plain words
+   Three short lines per card: what it shows, how to read it, what good looks like.
+   English and Persian; the trader picks in Customize.
+   ============================================================ */
+const HELP={
+"Filters":{en:["Chooses which trades every chart on this page is built from.","Pick a period, one strategy, or tagged trades only. The count on the right says how many trades are in view.","Nothing to judge — but remember every number below changes with it."],
+ fa:["تعیین می‌کند همهٔ نمودارهای این صفحه از کدام تریدها ساخته شوند.","یک بازهٔ زمانی، یک استراتژی، یا فقط تریدهای تگ‌خورده را انتخاب کن. عدد سمت راست می‌گوید چند ترید در نظر گرفته شده.","چیزی برای قضاوت نیست — فقط یادت باشد همهٔ عددهای پایین با این عوض می‌شوند."]},
+"Core Metrics":{en:["Your headline numbers for the trades in view.","Hover any tile for what it means. R is profit measured in units of what you risked: +1R means you made what you risked, −1R means a full stop.","Positive expectancy and a profit factor above 1.3 matter far more than the win rate."],
+ fa:["عددهای اصلی تو برای تریدهایی که در فیلتر هستند.","موس را روی هر کاشی نگه دار تا معنی‌اش را ببینی. R یعنی سود به اندازهٔ ریسک: +1R یعنی به اندازهٔ ریسکت سود کردی، −1R یعنی یک استاپ کامل.","expectancy مثبت و profit factor بالای ۱.۳ خیلی مهم‌تر از وین‌ریت هستند."]},
+"Equity Curve":{en:["Your running total in R, one step per trade, oldest on the left.","Up means the account grew, down means it fell. The shaded dips are drawdowns — time spent below your previous best.","A line that rises from left to right with short, shallow dips."],
+ fa:["جمع سود تو به R، ترید به ترید، از قدیمی‌ترین در سمت چپ.","بالا رفتن یعنی حساب رشد کرد، پایین آمدن یعنی ضرر. فرورفتگی‌ها دراوداون‌اند — زمانی که زیر بهترین نقطهٔ قبلی‌ات بودی.","خطی که از چپ به راست بالا می‌رود و فرورفتگی‌هایش کوتاه و کم‌عمق است."]},
+"Rolling Expectancy":{en:["Your average R per trade over the most recent stretch of trades, moving forward one trade at a time.","Above the zero line your recent trading was profitable; below it, it was losing. It shows when your edge strengthened or faded.","Staying above zero, without long dips under it."],
+ fa:["میانگین R هر ترید در آخرین چند ترید، که با هر ترید جدید یک قدم جلو می‌رود.","بالای خط صفر یعنی تریدهای اخیرت سودده بوده‌اند؛ زیرش یعنی ضررده. نشان می‌دهد لبهٔ معاملاتی‌ات کِی قوی‌تر یا ضعیف‌تر شد.","بالای صفر ماندن، بدون افت‌های طولانی زیر آن."]},
+"R Distribution":{en:["How often each result happened — how many trades ended at −1R, +1R, +2R and so on.","Bars on the right are wins, on the left losses. A tall bar beyond −1R means losses ran past your stop.","Losses stacked at about −1R and nothing much worse; wins spread out to the right."],
+ fa:["هر نتیجه چند بار تکرار شده — چند ترید با −1R، +1R، +2R و … بسته شده.","میله‌های سمت راست بُرد، سمت چپ باخت. میلهٔ بلند فراتر از −1R یعنی ضررها از استاپت رد شده‌اند.","ضررها حدود −1R جمع شده باشند و بدتر نه؛ بُردها به سمت راست پخش باشند."]},
+"Daily Performance":{en:["Each trading day as one bar: how much R that day made or lost.","Look for clusters of red days — they usually share a cause (tired, news, overtrading).","Red days that stay small; no single day wiping out a week."],
+ fa:["هر روز معاملاتی یک میله: آن روز چقدر R سود یا ضرر داد.","دنبال روزهای قرمزِ پشت‌سرهم بگرد — معمولاً یک دلیل مشترک دارند (خستگی، خبر، زیاد ترید کردن).","روزهای قرمز کوچک بمانند؛ هیچ روزی سود یک هفته را پاک نکند."]},
+"Hour × Weekday":{en:["A grid of hour of the day against day of the week, coloured by what you earned there.","Green squares are times that paid you, red ones cost you. Faded squares have too few trades to trust.","A clear green zone you can concentrate on, and red zones you can avoid."],
+ fa:["جدولی از ساعت روز در برابر روز هفته، که رنگ هر خانه نشان می‌دهد آنجا چقدر درآوردی.","خانه‌های سبز زمان‌هایی‌اند که برایت سود داشتند، قرمزها ضرر. خانه‌های کم‌رنگ ترید کافی ندارند.","یک محدودهٔ سبز واضح که رویش تمرکز کنی، و محدوده‌های قرمز که از آن دوری کنی."]},
+"Trade Efficiency":{en:["For trades where you recorded how far price ran (MFE), how much of that move you actually kept.","A point far above the diagonal means price kept going after you closed — money left on the table.","Most winners closing close to the best price they reached."],
+ fa:["برای تریدهایی که ثبت کردی قیمت تا کجا رفت (MFE): چقدر از آن حرکت را واقعاً برداشتی.","نقطه‌ای خیلی بالاتر از خط مورب یعنی بعد از بستن، قیمت ادامه داد — پولی که روی میز ماند.","بیشتر بُردها نزدیک بهترین قیمتی که دیدند بسته شده باشند."]},
+"Monthly Performance":{en:["Each calendar month: trades, win rate and R.","Compare months to see whether you are improving or whether one bad month carries the year.","Most months positive; losing months small."],
+ fa:["هر ماه تقویمی: تعداد ترید، وین‌ریت و R.","ماه‌ها را مقایسه کن تا ببینی پیشرفت داری یا یک ماه بد کل سال را خراب کرده.","بیشتر ماه‌ها مثبت؛ ماه‌های منفی کوچک."]},
+"Session Windows":{en:["Your time windows across the day, each with what you earned in it.","Compare the weight you gave each window (A/B/C) with what it actually paid you.","Your A windows should also be your most profitable ones."],
+ fa:["پنجره‌های زمانی تو در طول روز، هر کدام با سودی که در آن داشتی.","وزنی که به هر پنجره دادی (A/B/C) را با چیزی که واقعاً برایت سود داشت مقایسه کن.","پنجره‌های A باید سودده‌ترین پنجره‌هایت هم باشند."]},
+"Sub-Sessions":{en:["Your own slices of the day, each with your real results in it.","The strip runs round the clock — green slices paid you, red ones cost you. Best and worst are marked, with how sure that is.","A few strong slices to focus on; the red ones are candidates to stop trading."],
+ fa:["بازه‌های زمانی خودت در طول روز، هر کدام با نتیجهٔ واقعی‌ات.","نوار، کل ۲۴ ساعت است — بازه‌های سبز برایت سود داشتند، قرمزها ضرر. بهترین و بدترین علامت خورده‌اند، همراه با اینکه چقدر می‌شود به آن مطمئن بود.","چند بازهٔ قوی برای تمرکز؛ بازه‌های قرمز کاندید کنار گذاشتن‌اند."]},
+"Cross Analysis":{en:["Any two things side by side — for example strategy against time of day.","Pick rows and columns. Each cell is that combination's result, so you see where a strategy works, not just whether it works.","Spotting the one or two combinations that carry your profit."],
+ fa:["دو چیز را کنار هم می‌گذارد — مثلاً استراتژی در برابر ساعت روز.","سطر و ستون را انتخاب کن. هر خانه نتیجهٔ همان ترکیب است، پس می‌بینی یک استراتژی کجا جواب می‌دهد، نه فقط اینکه جواب می‌دهد یا نه.","پیدا کردن یکی دو ترکیبی که سود تو را می‌سازند."]},
+"What If":{en:["Your results if you had skipped a whole group of trades — a strategy, a window, a mental state.","Switch a group off and watch the curve and numbers redraw without those trades.","If removing a group makes everything better, that group is costing you money."],
+ fa:["اگر یک دسته ترید را نزده بودی، نتیجه‌ات چه می‌شد — یک استراتژی، یک پنجره، یک حالت ذهنی.","یک دسته را خاموش کن و ببین نمودار و عددها بدون آن تریدها چطور عوض می‌شوند.","اگر حذف یک دسته همه‌چیز را بهتر کند، آن دسته دارد از جیبت پول می‌برد."]},
+"Discipline Score":{en:["How closely you followed your own rules, as one score out of 100.","Built from rule adherence, trades after your stop limit and off-plan trades. It is about behaviour, not profit.","80 and above. A profitable period with a low score is luck, not skill."],
+ fa:["چقدر به قانون‌های خودت پایبند بودی، به صورت یک نمره از ۱۰۰.","از پایبندی، تریدهای بعد از سقف استاپ و تریدهای خارج از پلن ساخته می‌شود. دربارهٔ رفتار است، نه سود.","۸۰ به بالا. دوره‌ای پرسود با نمرهٔ پایین، شانس است نه مهارت."]},
+"Trading Report":{en:["A written review of your whole record: what works, where money leaks, and what to do next.","Read the leaks from the top — the first one costs you the most. Each one says how much and what to change.","Few leaks, small ones, and a clear 'what is working' list."],
+ fa:["یک گزارش نوشتاری از کل سابقه‌ات: چه چیزی جواب می‌دهد، پول از کجا نشت می‌کند، و قدم بعدی چیست.","نشت‌ها را از بالا بخوان — اولی بیشترین هزینه را دارد. هر کدام می‌گوید چقدر و چه چیزی را عوض کنی.","نشت کم و کوچک، و یک فهرست روشن از چیزهایی که جواب می‌دهند."]},
+"Automated Analysis":{en:["Short findings the journal noticed in your trades.","Each line is one pattern with the numbers behind it.","Act on the ones with enough trades behind them; note the rest."],
+ fa:["یافته‌های کوتاهی که ژورنال در تریدهایت دیده.","هر خط یک الگو است همراه با عددهای پشتش.","روی آن‌هایی که ترید کافی پشتشان است عمل کن؛ بقیه را یادداشت کن."]},
+"Draft Plan — Next Session Block":{en:["A plan for your next block of trading, written from your own results.","Edit it, copy it, keep it in front of you while you trade.","Short and specific: a few rules you will actually follow."],
+ fa:["برنامه‌ای برای دورهٔ معاملاتی بعدی‌ات، نوشته‌شده از روی نتایج خودت.","ویرایشش کن، کپی‌اش کن، و موقع ترید جلوی چشمت باشد.","کوتاه و مشخص: چند قانون که واقعاً اجرایشان می‌کنی."]},
+"How Sure Can You Be?":{en:["Whether your profit is likely real skill or could still be luck.","The bar is the range your true expectancy probably sits in. If the range crosses zero, your record is not yet long enough to prove an edge.","The whole range above zero."],
+ fa:["آیا سودت احتمالاً مهارت واقعی است یا هنوز ممکن است شانس باشد.","نوار، محدوده‌ای است که expectancy واقعی‌ات احتمالاً در آن قرار دارد. اگر محدوده از صفر رد شود، سابقه‌ات هنوز برای اثبات لبه کافی نیست.","کل محدوده بالای صفر باشد."]},
+"Risk Profile":{en:["The numbers a fund manager would check: how smooth your returns are, how deep and long your losses got, and how much you could safely risk.","Sortino and Sharpe: higher is smoother. Ulcer and drawdown: lower is calmer. Quarter Kelly: a sensible ceiling for risk per trade.","Drawdowns you could sit through without changing your system."],
+ fa:["عددهایی که یک مدیر صندوق نگاه می‌کند: سودت چقدر یکنواخت است، ضررها چقدر عمیق و طولانی شدند، و چقدر می‌توانی امن ریسک کنی.","Sortino و Sharpe: بالاتر یعنی یکنواخت‌تر. Ulcer و دراوداون: پایین‌تر یعنی آرام‌تر. Quarter Kelly: یک سقف معقول برای ریسک هر ترید.","دراوداون‌هایی که بتوانی تحملشان کنی بدون اینکه سیستمت را عوض کنی."]},
+"Is the Edge Still Working?":{en:["Compares your recent trades with your older ones to catch a fading edge early.","'Weakening' means the recent half is significantly worse; 'Holding' means no real change.","Holding or Improving."],
+ fa:["تریدهای اخیرت را با قدیمی‌ترها مقایسه می‌کند تا ضعیف شدن لبه را زود بفهمی.","«Weakening» یعنی نیمهٔ اخیر به‌طور معناداری بدتر است؛ «Holding» یعنی تغییر واقعی نیست.","Holding یا Improving."]},
+"Monte Carlo":{en:["Your trades reshuffled thousands of times to show the range of futures your system could produce.","The spread shows good and bad luck with the same edge. Look at the worst cases — could your account survive them?","Even the bad cases end in profit, and the worst drawdown is one you could bear."],
+ fa:["تریدهایت هزاران بار جابه‌جا می‌شوند تا محدودهٔ آینده‌هایی که سیستمت می‌تواند بسازد را نشان دهند.","پخش بودن نتایج، شانس خوب و بد با همان لبه است. به بدترین حالت‌ها نگاه کن — حسابت از آن‌ها جان سالم به در می‌برد؟","حتی حالت‌های بد هم با سود تمام شوند، و بدترین دراوداون قابل تحمل باشد."]},
+"Box History":{en:["Every box you have run, newest first, with how each one went.","Click a box to see its calendar; Report opens its full write-up. The table compares all boxes side by side.","Each box a little better than the one before — the arrows in the table show it."],
+ fa:["همهٔ باکس‌هایی که اجرا کردی، جدیدترین اول، با نتیجهٔ هر کدام.","روی هر باکس کلیک کن تا تقویمش را ببینی؛ Report گزارش کاملش را باز می‌کند. جدول همهٔ باکس‌ها را کنار هم مقایسه می‌کند.","هر باکس کمی بهتر از قبلی — فلش‌های جدول همین را نشان می‌دهند."]},
+"Where This Box Is Heading":{en:["The rest of this box played out thousands of times from your results so far.","The big percentage is your chance of reaching the target before the drawdown limit. The three numbers are the likely, bad and good finish.","Above 70% — and a bad case you could live with."],
+ fa:["بقیهٔ این باکس، هزاران بار با نتایج تا اینجای تو شبیه‌سازی شده.","درصد بزرگ، شانس رسیدن به هدف قبل از خوردن به سقف دراوداون است. سه عدد زیرش، پایان احتمالی، بد و خوب‌اند.","بالای ۷۰٪ — و حالت بدی که بتوانی با آن کنار بیایی."]},
+"Payout Desk":{en:["How much to withdraw this week under your own payout rule.","It follows your rule (e.g. half of each winning week) and warns you if a guard says not to take it.","Withdraw what it says, on your payout day — consistency is the point."],
+ fa:["این هفته طبق قانون برداشت خودت چقدر باید برداشت کنی.","از قانون خودت پیروی می‌کند (مثلاً نصف سود هر هفتهٔ سودده) و اگر یکی از محافظ‌ها بگوید برنداری، هشدار می‌دهد.","همان مقداری که می‌گوید را در روز برداشت بردار — ثبات، کل ماجراست."]},
+"Account & Payouts":{en:["The box's account week by week: balance, profit, and what was withdrawn.","Each row is one week. 'Due' means the week is not over yet, so nothing is withdrawn from it yet.","A balance that holds or grows while payouts keep coming out."],
+ fa:["حساب باکس هفته به هفته: موجودی، سود، و مقدار برداشت‌شده.","هر سطر یک هفته است. «Due» یعنی هفته هنوز تمام نشده و هنوز چیزی از آن برداشت نشده.","موجودی‌ای که ثابت بماند یا رشد کند در حالی که برداشت‌ها ادامه دارند."]},
+"Calendar":{en:["The box day by day: each circle is a trading day, coloured by its result.","Click a day to see every trade in it in full detail. Gold Sundays are payout days.","More green than red, and red days that stay small."],
+ fa:["باکس روز به روز: هر دایره یک روز معاملاتی است و رنگش نتیجهٔ آن روز.","روی هر روز کلیک کن تا همهٔ تریدهایش را با جزئیات ببینی. یکشنبه‌های طلایی روز برداشت‌اند.","سبز بیشتر از قرمز، و روزهای قرمز کوچک."]},
+"Rule Breaks":{en:["Every trade that broke one of this box's own rules.","At the end it compares trades inside the rules with those outside — that is what your rules are worth in R.","None — or breaks that clearly cost less than following the rules."],
+ fa:["هر تریدی که یکی از قانون‌های همین باکس را شکسته.","در پایین، تریدهای داخل قانون را با خارج قانون مقایسه می‌کند — این ارزش قانون‌هایت به R است.","هیچ — یا شکستن‌هایی که به‌وضوح کمتر از رعایت قانون هزینه داشته باشند."]},
+"Where It Goes":{en:["Your spending by category.","The biggest slices are where a change saves the most.","Spending that fits inside what your trading actually pays out."],
+ fa:["خرج‌هایت به تفکیک دسته.","بزرگ‌ترین بخش‌ها جایی‌اند که تغییر، بیشترین صرفه‌جویی را دارد.","خرجی که در حد برداشت واقعی معاملاتت باشد."]},
+"Ledger":{en:["Every money entry you have recorded, newest first.","Use it to check or delete an entry.","—"],fa:["همهٔ ورودی‌های مالی‌ای که ثبت کردی، جدیدترین اول.","برای چک کردن یا حذف یک ورودی.","—"]},
+"All Trades":{en:["Every trade in the journal as one table.","Click a row's × to delete it. Export CSV keeps a copy outside the app.","—"],fa:["همهٔ تریدهای ژورنال در یک جدول.","با × هر سطر حذفش کن. Export CSV یک نسخه بیرون از اپ نگه می‌دارد.","—"]},
+"Session Log":{en:["Your end-of-day notes: sleep, state, biggest mistake, one fix.","Read it before a new week — patterns in your notes often explain patterns in your results.","—"],fa:["یادداشت‌های پایان روزت: خواب، حال، بزرگ‌ترین اشتباه، یک اصلاح.","قبل از هر هفتهٔ جدید بخوانش — الگوهای یادداشت‌ها معمولاً الگوهای نتیجه را توضیح می‌دهند.","—"]},
+"__table":{en:["Your trades split by this one thing, with the result of each group.","Each row is a group. 'Each' is the average R per trade — the column that matters most. Faded rows have too few trades to trust.","The groups at the top are where your money comes from."],
+ fa:["تریدهایت به تفکیک همین یک ویژگی، با نتیجهٔ هر گروه.","هر سطر یک گروه است. «Each» میانگین R هر ترید است — مهم‌ترین ستون. سطرهای کم‌رنگ ترید کافی ندارند.","گروه‌های بالای جدول جایی‌اند که پولت از آنجا می‌آید."]}
+};
+/* one line under each headline number, and the full meaning on hover */
+const KPIHELP={
+"Trades":{en:["trades in view","How many trades the numbers on this page are built from. Under about 30, treat everything as a first impression."],
+          fa:["تعداد ترید","تعداد تریدهایی که عددهای این صفحه از آن‌ها ساخته شده. زیر حدود ۳۰ ترید، همه‌چیز فقط یک برداشت اولیه است."]},
+"Win rate":{en:["share of trades that made money","The percentage of trades that closed in profit. On its own it means little — a 40% win rate with big wins beats 60% with small ones."],
+          fa:["درصد تریدهای سودده","درصد تریدهایی که با سود بسته شدند. به‌تنهایی معنای زیادی ندارد — ۴۰٪ وین‌ریت با بُردهای بزرگ از ۶۰٪ با بُردهای کوچک بهتر است."]},
+"Net P/L":{en:["money made, after costs","Total profit or loss in dollars across the trades in view, net of commission and swap if that setting is on."],
+          fa:["سود خالص به دلار","جمع سود یا ضرر به دلار برای تریدهای در نظر گرفته‌شده، بعد از کمیسیون و سواپ اگر آن تنظیم روشن باشد."]},
+"Total R":{en:["profit in units of risk","Total profit measured in R. +30R means you made thirty times what you risk on one trade. It lets you compare periods even when your risk size changed."],
+          fa:["سود به واحد ریسک","کل سود به R. ‏+30R یعنی سی برابر ریسک یک ترید سود کردی. با این می‌شود دوره‌ها را حتی وقتی اندازهٔ ریسک عوض شده مقایسه کرد."]},
+"Expectancy":{en:["average R per trade — your edge","What one trade is worth on average, in R. +0.16R means each trade earns, on average, 16% of what you risk. This is the single most important number here."],
+          fa:["میانگین R هر ترید — لبهٔ تو","ارزش متوسط یک ترید به R. ‏+0.16R یعنی هر ترید به‌طور میانگین ۱۶٪ ریسکت سود می‌دهد. مهم‌ترین عدد این صفحه است."]},
+"Profit factor":{en:["gross wins ÷ gross losses","Every dollar lost is matched by this many dollars won. Above 1 is profitable, 1.3–1.5 is solid, above 2 is excellent."],
+          fa:["جمع بُردها ÷ جمع باخت‌ها","در برابر هر دلار ضرر، این‌قدر دلار سود کردی. بالای ۱ سودده است، ۱.۳ تا ۱.۵ خوب، بالای ۲ عالی."]},
+"Avg win":{en:["size of a typical winner","The average R of your winning trades."],fa:["اندازهٔ یک بُرد معمولی","میانگین R تریدهای سودده."]},
+"Avg loss":{en:["size of a typical loser","The average R of your losing trades. Near −1R means you respect your stop; much worse means losses run."],
+          fa:["اندازهٔ یک باخت معمولی","میانگین R تریدهای ضررده. نزدیک −1R یعنی به استاپت احترام می‌گذاری؛ خیلی بدتر یعنی ضررها را رها می‌کنی."]},
+"Payoff ratio":{en:["average win ÷ average loss","How big your wins are compared with your losses. Above 1 means winners are bigger than losers, so you can win less than half the time and still profit."],
+          fa:["میانگین بُرد ÷ میانگین باخت","بُردهایت در مقایسه با باخت‌ها چقدر بزرگ‌اند. بالای ۱ یعنی بُردها بزرگ‌ترند، پس حتی با وین‌ریت زیر ۵۰٪ هم سودده می‌مانی."]},
+"Max drawdown":{en:["deepest fall from a peak, in R","The largest drop from your best point to a later low. It is the pain your system can put you through — expect to see it again."],
+          fa:["عمیق‌ترین افت از یک اوج، به R","بزرگ‌ترین افت از بهترین نقطه تا یک کف بعدی. دردی است که سیستمت می‌تواند به تو بدهد — انتظار داشته باش دوباره ببینی‌اش."]},
+"Max loss streak":{en:["most losses in a row","The longest run of consecutive losing trades. Knowing it in advance keeps a normal streak from making you abandon a good system."],
+          fa:["بیشترین باخت پشت‌سرهم","طولانی‌ترین سری تریدهای ضررده پشت‌سرهم. دانستنش از قبل باعث می‌شود یک سری عادی تو را مجبور به کنار گذاشتن یک سیستم خوب نکند."]},
+"Rule adherence":{en:["tagged trades taken by the plan","Of the trades you have tagged, the share you marked 'Followed'. Partial and Broke count against it. It measures discipline, not profit."],
+          fa:["درصد تریدهای طبق پلن","از تریدهایی که تگ زدی، سهمی که «Followed» علامت زدی. Partial و Broke آن را پایین می‌آورند. نظم را می‌سنجد، نه سود را."]}
+};
+const helpLang=()=>((CFG||{}).helpLang==="fa")?"fa":"en";
+function setHelpLang(v){CFG.helpLang=v==="fa"?"fa":"en";save();render();toast(v==="fa"?"راهنما فارسی شد":"Help in English")}
+function helpBox(h){
+  const L=helpLang(), t=h[L]||h.en, fa=L==="fa";
+  const lab=fa?["چه نشان می‌دهد","چطور بخوانی","خوب یعنی"]:["What it shows","How to read it","What good looks like"];
+  return `<details class="howto"${fa?' dir="rtl"':""}><summary>${fa?"این بخش چیست؟":"How to read this"}</summary>
+    <div class="hw"><b>${lab[0]}</b><span>${t[0]}</span></div>
+    <div class="hw"><b>${lab[1]}</b><span>${t[1]}</span></div>
+    ${t[2]&&t[2]!=="—"?`<div class="hw"><b>${lab[2]}</b><span>${t[2]}</span></div>`:""}</details>`;
+}
+function addHelp(){
+  const L=helpLang();
+  document.querySelectorAll(".card > h2").forEach(h2=>{
+    const card=h2.parentElement;
+    const pg=card.closest(".page"); if(pg&&pg.querySelector("#helpLang"))return;   // settings cards explain themselves
+    let title="";h2.childNodes.forEach(n=>{if(n.nodeType===3)title+=n.textContent});
+    title=title.trim();
+    const H=HELP[title]||(card.closest("#tables")?HELP.__table:null);
+    if(!H)return;
+    const old=card.querySelector(":scope > details.howto");
+    if(old&&old.dataset.lang===L)return;
+    if(old)old.remove();
+    const hint=card.querySelector(":scope > p.hint");
+    const anchor=hint||h2;
+    anchor.insertAdjacentHTML("afterend",helpBox(H));
+    const d=card.querySelector(":scope > details.howto"); if(d)d.dataset.lang=L;
+  });
+  /* the headline tiles */
+  document.querySelectorAll("#kpis .kpi").forEach(k=>{
+    const l=(k.querySelector(".l")||{}).textContent||"", H=KPIHELP[l.trim()]; if(!H)return;
+    const t=H[L]||H.en; k.title=t[1];
+    let c=k.querySelector(".kh"); if(!c){c=document.createElement("div");c.className="kh";k.appendChild(c)}
+    c.textContent=t[0]; c.dir=L==="fa"?"rtl":"ltr";
+  });
+}
+
 let FILEBUF="";
 function ingestProbe(rows,map,opt){
   const R={norisk:0};
@@ -3399,6 +3663,7 @@ function renderEditors(){
   document.getElementById("n_week").value=CFG.risk.weekR;
   renderCloud();
   renderSubSettings();
+  const hl=document.getElementById("helpLang"); if(hl)hl.value=helpLang();
   const rf=document.getElementById("n_rfixed"); if(rf)rf.checked=!!CFG.risk.fixed;
   const nt=document.getElementById("n_net"); if(nt)nt.checked=CFG.risk.net!==false;
   const rb=document.getElementById("n_rband"); if(rb)rb.value=CFG.risk.band||35;
@@ -5551,6 +5816,7 @@ function render(){
   buildForm();renderBoxes();renderBoxForm();insights(tr);renderData();renderChecklist();renderQueue();renderBulk();renderEditors();renderCF();renderBulkList();renderChkEditor();
   renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderSubs();renderReport();renderConfidence();renderRisk();renderDecay();
   observe();spy();
+  try{addHelp()}catch(e){}
 }
 function tableFor(name,tr,key,idx){
   const g=group(tr,key), M=MIN();
@@ -8514,7 +8780,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.9";
+const APP_VERSION="1.0.0-beta.10";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

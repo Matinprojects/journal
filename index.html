@@ -405,6 +405,14 @@ table.cmp td:first-child{color:var(--txt2)}
 .rule.ruled a{margin-left:7px;cursor:pointer;color:var(--dim);font-weight:700}
 .rule.ruled a:hover{color:#F5716C}
 .ruleopt b{color:var(--gold-lt)}
+.substrip{display:flex;height:62px;border-radius:14px;overflow:hidden;border:1px solid var(--line2);gap:2px;background:rgba(0,0,0,.25)}
+.substrip .sg{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:6px 6px;min-width:0}
+.substrip .sg .t{font-size:10px;color:rgba(255,255,255,.75);white-space:nowrap;overflow:hidden}
+.substrip .sg .e{font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.substrip .sg.best{outline:2px solid #5FE0A6;outline-offset:-2px}.substrip .sg.worst{outline:2px solid #F5716C;outline-offset:-2px}
+.subverdict{display:grid;gap:6px;margin:14px 0 4px;font-size:13px;color:var(--txt2)}
+.subverdict .l{display:inline-block;min-width:52px;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+tr.thin td{opacity:.55}
 .runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
@@ -1249,7 +1257,7 @@ table.cmp td:first-child{color:var(--txt2)}
     <div class="secnav" id="secnav">
       <a data-s="s-metrics">Metrics</a><a data-s="s-equity">Equity</a><a data-s="s-rolling">Rolling</a>
       <a data-s="s-dist">Distribution</a><a data-s="s-daily">Daily</a><a data-s="s-heat">Hour × day</a>
-      <a data-s="s-eff">Efficiency</a><a data-s="s-monthly">Monthly</a><a data-s="s-windows">Windows</a><a data-s="s-cross">Cross</a><a data-s="s-whatif">What if</a><a data-s="s-disc">Discipline</a><a data-s="s-tables">Breakdowns</a>
+      <a data-s="s-eff">Efficiency</a><a data-s="s-monthly">Monthly</a><a data-s="s-windows">Windows</a><a data-s="s-subs">Sub-sessions</a><a data-s="s-cross">Cross</a><a data-s="s-whatif">What if</a><a data-s="s-disc">Discipline</a><a data-s="s-tables">Breakdowns</a>
     </div>
   </div>
   <div id="sampleWarn"></div>
@@ -1290,6 +1298,12 @@ table.cmp td:first-child{color:var(--txt2)}
     <p class="hint">Your own map of the day, with your real results laid over it. An indicator can tell you which windows the market tends to move in; only your journal can tell you which of them actually pay <em>you</em>. Where those two disagree is the most useful thing on this page.</p>
     <div class="chartbox" id="winBox"><div id="winTimeline"></div><div class="tip" id="winTip"></div></div>
     <div id="winTable"></div>
+  </div>
+
+  <div class="card rv" id="s-subs" style="--d:322ms">
+    <h2><span class="dot"></span>Sub-Sessions<span class="tail" id="subsTail"></span></h2>
+    <p class="hint">Your own slices of the day, each with your real results in it. The strip runs round the clock; the colour of each slice is what you have earned there per trade.</p>
+    <div id="subsBody"></div>
   </div>
 
   <div class="card rv" id="s-cross" style="--d:330ms">
@@ -1574,6 +1588,21 @@ table.cmp td:first-child{color:var(--txt2)}
       <br><br>Chart screenshots stay on the device that took them — they are far too large to carry this way. Use <b>Data → Backup</b> if you want those moved.</div></div>
   </div>
 
+  <div class="card rv" style="--d:193ms">
+    <h2><span class="dot"></span>Sub-Sessions<span class="tail" id="subTail"></span></h2>
+    <p class="hint">A finer map of the day, inside the big sessions — the slices you actually think in. Every trade is placed in one automatically, and the Dashboard shows which slice you trade best in. Your other session windows are left exactly as they are.</p>
+    <div class="grid g2">
+      <div><label>These times are read on</label>
+        <select id="sub_clock" onchange="setSubClock(this.value)">
+          <option value="platform">my platform's clock (same as the journal)</option><option value="chart">my chart's clock (uses the Chart Clock gap)</option></select>
+        <div class="mini" id="subClockNote" style="margin-top:6px"></div></div>
+      <div><label>Paste your slices — one per line</label>
+        <textarea id="sub_paste" rows="5" placeholder="15:30 - 16:30&#10;16:30 - 18&#10;18 - 21&#10;…"></textarea>
+        <button class="btn sec sm" style="margin-top:8px" onclick="pasteSubs()">Use these</button></div>
+    </div>
+    <div id="subList" style="margin-top:14px"></div>
+  </div>
+
   <div class="card rv" style="--d:195ms">
     <h2><span class="dot"></span>Chart Clock<span class="tail" id="clkTail"></span></h2>
     <p class="hint">Your platform stamps every trade in its own server clock. Your charting app draws the same candles in a different one. The gap between them is why a trade can look like it happened at the wrong candle when you go back to review it. Set the gap once and every time in this journal will be shown in the clock you actually look at.</p>
@@ -1769,6 +1798,8 @@ function defaults(){return{
     another. The two are rarely the same, and the gap is why a trade looks like it
     happened at the wrong candle. This is display only — nothing in the statistics moves. */
  chart:{offset:0},
+ /* a second, finer map of the day: his own slices inside the big sessions */
+ subs:{clock:"platform",list:[]},
  cloud:{gistId:"",auto:true,last:0,lastNote:"",cfgTouched:0},
  product:"Trading Journal",
  feedback:"https://github.com/Matinprojects/journal/issues",   // where problems get reported; any trader can change or clear it
@@ -1897,6 +1928,8 @@ function migrate(saved){
   if(Array.isArray(saved.checklist)&&saved.checklist.length)
     out.checklist=saved.checklist.filter(s=>s&&s.title).map(s=>({title:s.title,items:(s.items||[]).filter(i=>i&&i.t)}));
   if(saved.cloud&&typeof saved.cloud==="object")out.cloud=Object.assign(out.cloud||{},saved.cloud);
+  if(saved.subs&&typeof saved.subs==="object")out.subs={clock:saved.subs.clock==="chart"?"chart":"platform",
+    list:(Array.isArray(saved.subs.list)?saved.subs.list:[]).filter(w=>w&&w.from&&w.to).map(w=>({from:String(w.from),to:String(w.to),name:String(w.name||"")}))};
   ["thresholds","risk","gate","payout","chart"].forEach(k=>{if(saved[k])out[k]=Object.assign(out[k],saved[k])});
   if(saved.product)out.product=saved.product;
   if(typeof saved.feedback==="string")out.feedback=saved.feedback;
@@ -1977,6 +2010,25 @@ const blockGrade=t=>{const b=blockOf(t);return b&&b.grade?b.grade:""};
 const mins=t=>{const m=String(t||"").match(/(\d{1,2}):(\d{2})/);return m?(+m[1])*60+(+m[2]):0};
 /* a window may run past midnight, and windows may leave gaps — a trade in a gap
    belongs to no block rather than being forced into the nearest one */
+/* ---------- sub-sessions ----------
+   Trade times arrive in the platform's clock. Slices are normally read on that same
+   clock, so a trade stamped 12:45 sits in 10:00–13:00 with no conversion. If a trader
+   draws them on a chart that runs on another clock, the Chart Clock offset moves each
+   trade onto that clock first. */
+const SUBS=()=>((CFG||{}).subs&&Array.isArray(CFG.subs.list))?CFG.subs.list:[];
+const subName=w=>w.name&&w.name.trim()?w.name.trim():`${w.from}–${w.to}`;
+function subOf(t){
+  const L=SUBS(); if(!L.length)return "";
+  if(!/\d{1,2}:\d{2}/.test(String(t||"")))return "";        // no time, no slice — never 00:00 by default
+  let x=mins(t);
+  if(((CFG.subs||{}).clock||"platform")==="chart")x=((x+chartOff())%1440+1440)%1440;
+  for(const w of L){
+    const a=mins(w.from), z=mins(w.to); if(a===z)continue;
+    if(a<z?(x>=a&&x<z):(x>=a||x<z))return subName(w);
+  }
+  return "outside";
+}
+const subStart=n=>{const w=SUBS().find(w=>subName(w)===n);return w?mins(w.from):9999};
 function sess(t){
   const x=mins(t);
   for(const b of (CFG.sessions||[])){
@@ -3041,6 +3093,7 @@ function renderQueue(){
             chartOff()&&(t.ctime||closeGuess(t))?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.ctime||closeGuess(t))} on your platform</div>`:""}</div>
           <div><div class="l">Held</div><div class="v" style="font-size:13px">${t.dur!==""&&t.dur!==undefined?t.dur+"m":"—"}</div></div>
           <div><div class="l">Window</div><div class="v" style="font-size:11.5px">${esc(t.session)||"outside"}</div></div>
+          ${SUBS().length?`<div><div class="l">Sub-session</div><div class="v" style="font-size:11.5px">${esc(subOf(t.time))||"—"}</div></div>`:""}
         </div>
       </div>
       <div class="factgrp"><div class="gl">What</div>
@@ -3345,6 +3398,7 @@ function renderEditors(){
   document.getElementById("n_day").value=CFG.risk.dayR;
   document.getElementById("n_week").value=CFG.risk.weekR;
   renderCloud();
+  renderSubSettings();
   const rf=document.getElementById("n_rfixed"); if(rf)rf.checked=!!CFG.risk.fixed;
   const nt=document.getElementById("n_net"); if(nt)nt.checked=CFG.risk.net!==false;
   const rb=document.getElementById("n_rband"); if(rb)rb.value=CFG.risk.band||35;
@@ -3492,6 +3546,115 @@ function repairRisk(preview){
     <b>${hits.length} trades repaired.</b> Their R now reflects what you actually put at risk.
     Every figure built on R — expectancy, your box, the payout advice — has been recalculated.</div></div>`;
   toast(hits.length+" trades repaired");
+}
+/* Reads what a person actually types: Persian or Arabic digits, "تا", dashes of any
+   kind, "18" for 18:00, "2:30 صبح". One slice per line. */
+function parseSubs(txt){
+  const fa="۰۱۲۳۴۵۶۷۸۹", ar="٠١٢٣٤٥٦٧٨٩";
+  const norm=String(txt||"").replace(/[۰-۹]/g,d=>fa.indexOf(d)).replace(/[٠-٩]/g,d=>ar.indexOf(d))
+    .replace(/[٫]/g,":").replace(/\r/g,"");
+  const hm=v=>{const m=String(v).match(/(\d{1,2})(?:[:.](\d{1,2}))?/); if(!m)return null;
+    const h=+m[1], mi=m[2]===undefined?0:+m[2]; if(h>24||mi>59)return null;
+    return String(h%24).padStart(2,"0")+":"+String(mi).padStart(2,"0")};
+  const out=[];
+  norm.split("\n").forEach(line=>{
+    const L=line.trim(); if(!L)return;
+    const parts=L.split(/\s*(?:تا|to|until|[-–—~]|→)\s*/i).filter(x=>/\d/.test(x));
+    if(parts.length<2)return;
+    const a=hm(parts[0]), b=hm(parts[1]);
+    if(a&&b&&a!==b)out.push({from:a,to:b,name:""});
+  });
+  return out;
+}
+function pasteSubs(){
+  const el=document.getElementById("sub_paste"), list=parseSubs(el&&el.value);
+  if(!list.length)return toast("No time ranges found — one per line, like 15:30 - 16:30",1);
+  CFG.subs=CFG.subs||{clock:"platform",list:[]};
+  CFG.subs.list=list; if(el)el.value="";
+  save(); render(); toast(`${list.length} sub-sessions set`);
+}
+function setSubClock(v){CFG.subs=CFG.subs||{list:[]};CFG.subs.clock=v==="chart"?"chart":"platform";save();render()}
+function editSub(i,f,v){
+  const w=SUBS()[i]; if(!w)return;
+  if(f==="name")w.name=String(v||"").trim();
+  else{const p=parseSubs(v+" - 00:01")[0]; if(p)w[f]=p.from; else return toast("Not a time",1)}
+  save(); render();
+}
+function delSub(i){CFG.subs.list.splice(i,1);save();render();toast("Removed")}
+function addSub(){CFG.subs=CFG.subs||{clock:"platform",list:[]};CFG.subs.list.push({from:"12:00",to:"13:00",name:""});save();render()}
+/* do the slices cover the whole day, overlap, or leave gaps? said plainly */
+function subCoverage(){
+  const seen=new Uint8Array(1440); let over=0;
+  SUBS().forEach(w=>{const a=mins(w.from),z=mins(w.to); if(a===z)return;
+    const mark=i=>{if(seen[i])over++;seen[i]=1};
+    if(a<z)for(let i=a;i<z;i++)mark(i); else{for(let i=a;i<1440;i++)mark(i);for(let i=0;i<z;i++)mark(i)}});
+  return {covered:seen.reduce((a,b)=>a+b,0),over};
+}
+function renderSubSettings(){
+  const host=document.getElementById("subList"); if(!host)return;
+  const L=SUBS(), clk=((CFG.subs||{}).clock)||"platform";
+  const sel=document.getElementById("sub_clock"); if(sel)sel.value=clk;
+  const note=document.getElementById("subClockNote");
+  if(note)note.innerHTML=clk==="platform"
+    ? "Trade times are used exactly as your platform stamped them — a trade at 12:45 sits in a 10:00–13:00 slice."
+    : (chartOff()?`Each trade is moved ${offWord()} onto your chart's clock before it is placed.`
+       :`<span class="au">Chart Clock is not set, so the two clocks are treated as the same.</span>`);
+  const tail=document.getElementById("subTail"); if(tail)tail.textContent=L.length?`${L.length} slices`:"none yet";
+  if(!L.length){host.innerHTML=`<div class="mini">No sub-sessions yet. Paste them above, one per line.</div>`;return}
+  const cov=subCoverage();
+  host.innerHTML=`<div class="scroll"><table><thead><tr><th>From</th><th>To</th><th>Name <span class="mini">(optional)</span></th><th>Trades</th><th></th></tr></thead><tbody>
+    ${L.map((w,i)=>{const n=DB.trades.filter(t=>subOf(t.time)===subName(w)).length;
+      return `<tr><td><input class="mono" style="width:86px" value="${esc(w.from)}" onchange="editSub(${i},'from',this.value)"></td>
+        <td><input class="mono" style="width:86px" value="${esc(w.to)}" onchange="editSub(${i},'to',this.value)"></td>
+        <td><input value="${esc(w.name||"")}" placeholder="${esc(w.from+"–"+w.to)}" onchange="editSub(${i},'name',this.value)"></td>
+        <td class="mono">${n}</td><td><button class="iconbtn" onclick="delSub(${i})" title="Remove">×</button></td></tr>`}).join("")}
+  </tbody></table></div>
+  <div class="row" style="margin-top:10px"><button class="btn sec sm" onclick="addSub()">Add a slice</button>
+    <span class="mini">${cov.covered===1440&&!cov.over?"Covers the whole day, no overlaps.":
+      (cov.over?`<span class="neg">Some slices overlap — a trade goes to the first one listed.</span> `:"")+
+      (cov.covered<1440?`${Math.round((1440-cov.covered)/60*10)/10} hours of the day fall in no slice.`:"")}</span></div>`;
+}
+function renderSubs(tr){
+  const host=document.getElementById("subsBody"); if(!host)return;
+  const tail=document.getElementById("subsTail");
+  const L=SUBS().slice().sort((a,b)=>mins(a.from)-mins(b.from));
+  if(!L.length){host.innerHTML=`<div class="mini">No sub-sessions set yet. Add yours in <b>Customize → Sub-Sessions</b> — paste them one per line.</div>`;
+    if(tail)tail.textContent="";return}
+  tr=tr||filtered();
+  const M=MIN(), minN=Math.max(5,Math.round((M.slice||8)*0.6));
+  const rows=L.map(w=>{const nm=subName(w), v=tr.filter(t=>subOf(t.time)===nm);
+    const a=mins(w.from), z=mins(w.to), dur=((z-a)+1440)%1440||1440;
+    return {w,nm,v,S:stats(v),a,dur}});
+  const outside=tr.filter(t=>subOf(t.time)==="outside");
+  const solid=rows.filter(r=>r.S.n>=minN);
+  const best=solid.length>1?solid.reduce((a,b)=>b.S.exp>a.S.exp?b:a):null;
+  const worst=solid.length>1?solid.reduce((a,b)=>b.S.exp<a.S.exp?b:a):null;
+  if(tail)tail.textContent=`${tr.filter(t=>subOf(t.time)&&subOf(t.time)!=="outside").length} trades placed`;
+  const mx=Math.max(0.25,...rows.filter(r=>r.S.n).map(r=>Math.abs(r.S.exp)));
+  const col=r=>{if(!r.S.n)return "rgba(255,255,255,.05)";const k=Math.min(1,Math.abs(r.S.exp)/mx)*(r.S.n<minN?.45:1);
+    return r.S.exp>=0?`rgba(63,207,142,${(.15+.7*k).toFixed(2)})`:`rgba(240,84,79,${(.15+.7*k).toFixed(2)})`};
+  /* the strip starts at the first slice, so a slice that crosses midnight stays in one piece */
+  const sig=r=>{if(!r)return "";const rest=tr.filter(t=>!r.v.includes(t));const t=permTest(r.v.map(x=>x.r),rest.map(x=>x.r),1500);
+    return t?`<span class="vd ${t.p<0.05?"good":t.p<0.15?"warn":"thin"}">${pWord(t.p)}</span>`:""};
+  host.innerHTML=`
+    <div class="substrip">${rows.map(r=>`<div class="sg ${r===best?"best":r===worst?"worst":""}" style="flex:${r.dur};background:${col(r)}"
+        title="${esc(r.nm)} · ${r.S.n} trades · ${n2(r.S.exp)}R each">
+        <span class="t">${esc(r.w.from)}</span><span class="e mono">${r.S.n?n2(r.S.exp):"·"}</span></div>`).join("")}</div>
+    ${best&&worst&&best!==worst?`<div class="subverdict">
+      <div><span class="l">Best</span><b>${esc(best.nm)}</b> — ${n2(best.S.exp)}R a trade over ${best.S.n} trades, ${n2(best.S.totR)}R in all ${sig(best)}</div>
+      <div><span class="l">Worst</span><b>${esc(worst.nm)}</b> — ${n2(worst.S.exp)}R a trade over ${worst.S.n} trades, ${n2(worst.S.totR)}R in all ${sig(worst)}</div>
+    </div>`:`<div class="mini" style="margin:10px 0">Each slice needs ${minN} trades before it is compared with the others.</div>`}
+    <div class="scroll" style="margin-top:12px"><table><thead><tr><th>Slice</th><th>Trades</th><th>Win</th><th>Each</th><th>Total</th><th>PF</th><th>Avg win / loss</th><th>Held</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr class="${r.S.n<minN?"thin":""}"><td><b>${esc(r.nm)}</b>${r===best?' <span class="tag g">best</span>':r===worst?' <span class="tag r">worst</span>':""}</td>
+        <td class="mono">${r.S.n}</td><td class="mono">${r.S.n?pct(r.S.wr):"—"}</td>
+        <td class="mono ${cls(r.S.exp)}">${r.S.n?n2(r.S.exp)+"R":"—"}</td><td class="mono ${cls(r.S.totR)}">${r.S.n?n2(r.S.totR)+"R":"—"}</td>
+        <td class="mono">${r.S.n?(r.S.pf>=99?"∞":n2(r.S.pf)):"—"}</td>
+        <td class="mono">${r.S.n?n2(r.S.aw)+" / "+n2(r.S.al):"—"}</td>
+        <td class="mono">${r.S.n?Math.round(avg(r.v.map(t=>+t.dur||0)))+"m":"—"}</td></tr>`).join("")}
+      ${outside.length?`<tr class="thin"><td>outside every slice</td><td class="mono">${outside.length}</td><td></td>
+        <td class="mono ${cls(stats(outside).exp)}">${n2(stats(outside).exp)}R</td><td class="mono">${n2(stats(outside).totR)}R</td><td></td><td></td><td></td></tr>`:""}
+    </tbody></table></div>
+    <div class="mini" style="margin-top:8px">Faded rows have fewer than ${minN} trades — read them as a hint, not a result. For any slice against strategy or mental state, use <b>Cross Analysis</b> below and pick "Sub-session".</div>`;
 }
 function setBeUnit(v){CFG.risk.beUnit=(v==="r")?"r":"usd";save();render();toast("Updated")}
 function edName(key,i,val){
@@ -3783,6 +3946,7 @@ function boxViolations(bx){
     }
     if(Array.isArray(bx.noWin)&&t.session&&bx.noWin.includes(t.session))v.push(`traded the ${esc(t.session)} window, which this box rules out`);
     if(Array.isArray(bx.noStrat)&&t.strat&&bx.noStrat.includes(t.strat))v.push(`used ${esc(t.strat)}, which this box rules out`);
+    if(Array.isArray(bx.noSub)&&bx.noSub.includes(subOf(t.time)))v.push(`traded in ${esc(subOf(t.time))}, which this box rules out`);
     if(Array.isArray(bx.noState)&&t.emo&&bx.noState.includes(t.emo))v.push(`traded while ${esc(t.emo)}`);
     if(bx.minGrade&&t.grade&&gradeRank(t.grade)>gradeRank(bx.minGrade))v.push(`a grade ${esc(t.grade)} setup, below the box's ${esc(bx.minGrade)}`);
     if(+bx.pause>0){const m=minsAfterStop(t,day);
@@ -3903,6 +4067,7 @@ function renderBoxes(){
           ${bx.dayR>0?`<div class="rule">Stop at <b>−${n2(bx.dayR)}R</b>/day</div>`:""}
           ${bx.maxLoss>0?`<div class="rule">Stop after <b>${bx.maxLoss}</b> losses</div>`:""}
           ${(bx.noWin||[]).map(x=>`<div class="rule ruled">No <b>${esc(x)}</b> window<a onclick="removeBoxRule('${jsq(bx.id)}','noWin','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
+          ${(bx.noSub||[]).map(x=>`<div class="rule ruled">No <b>${esc(x)}</b><a onclick="removeBoxRule('${jsq(bx.id)}','noSub','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
           ${(bx.noStrat||[]).map(x=>`<div class="rule ruled">No <b>${esc(x)}</b><a onclick="removeBoxRule('${jsq(bx.id)}','noStrat','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
           ${(bx.noState||[]).map(x=>`<div class="rule ruled">Not while <b>${esc(x)}</b><a onclick="removeBoxRule('${jsq(bx.id)}','noState','${jsq(x)}')" title="Remove this rule">×</a></div>`).join("")}
           ${bx.minGrade?`<div class="rule ruled">Grade <b>${esc(bx.minGrade)}</b>+ only<a onclick="removeBoxRule('${jsq(bx.id)}','minGrade','')" title="Remove this rule">×</a></div>`:""}
@@ -4219,7 +4384,7 @@ function renderBoxDay(bx,k){
           <div class="mt">
             <div class="a">${esc(t.strat)||'<span class="thin">untagged</span>'}
               ${t.grade?`<span class="tag ${gradePol(t.grade)==="good"?"g":gradePol(t.grade)==="bad"?"r":"a"}" style="margin-left:6px">${esc(t.grade)}</span>`:""}</div>
-            <div class="b">${esc(t.session)||"outside every window"}${t.dir?" · "+esc(t.dir):""}${
+            <div class="b">${esc(t.session)||"outside every window"}${SUBS().length&&subOf(t.time)?" · "+esc(subOf(t.time)):""}${t.dir?" · "+esc(t.dir):""}${
               t.exitreason?" · "+esc(t.exitreason):""}${t.emo?" · "+esc(t.emo):""}</div>
             ${(()=>{const m=moveOf(t);
               if(m)return `<div class="b mono">${px(m.a,t.symbol)} &rarr; ${px(m.b,t.symbol)}<span style="opacity:.6"> · ${
@@ -4273,6 +4438,7 @@ function renderBoxDay(bx,k){
 const MEASURES={
   strat:  {label:k=>`The ${k} setup`,          pick:(t,k)=>t.strat===k},
   win:    {label:k=>`The ${k} window`,         pick:(t,k)=>t.session===k},
+  sub:    {label:k=>`The ${k} slice`,          pick:(t,k)=>subOf(t.time)===k},
   grade:  {label:k=>`Grade ${k} setups`,       pick:(t,k)=>t.grade===k},
   state:  {label:k=>`Trading while ${k}`,      pick:(t,k)=>t.emo===k},
   day:    {label:k=>`${k}s`,                   pick:(t,k)=>DOWS[new Date(t.date+"T00:00:00").getDay()]===k},
@@ -4290,6 +4456,7 @@ const gradeRank=g=>{const L=names("grades");const i=L.indexOf(g);return i<0?99:i
 function ruleFor(key){
   const [t,...r]=String(key).split(":"); const k=r.join(":");
   if(t==="win")  return {f:"noWin",  v:k, say:`No trades in the ${k} window`};
+  if(t==="sub")  return {f:"noSub",  v:k, say:`No trades in ${k}`};
   if(t==="strat")return {f:"noStrat",v:k, say:`No ${k} setups`};
   if(t==="state")return {f:"noState",v:k, say:`No trades while ${k}`};
   if(t==="grade"){const L=names("grades"),i=L.indexOf(k);
@@ -4300,7 +4467,7 @@ function ruleFor(key){
 }
 function applyRule(bx,R){
   if(!bx||!R)return;
-  if(R.f==="noWin"||R.f==="noStrat"||R.f==="noState"){bx[R.f]=Array.isArray(bx[R.f])?bx[R.f]:[];if(!bx[R.f].includes(R.v))bx[R.f].push(R.v)}
+  if(R.f==="noWin"||R.f==="noSub"||R.f==="noStrat"||R.f==="noState"){bx[R.f]=Array.isArray(bx[R.f])?bx[R.f]:[];if(!bx[R.f].includes(R.v))bx[R.f].push(R.v)}
   else if(R.f==="cap")bx.cap=bx.cap>0?Math.min(bx.cap,R.v):R.v;
   else if(R.f==="minGrade")bx.minGrade=bx.minGrade&&gradeRank(bx.minGrade)<gradeRank(R.v)?bx.minGrade:R.v;
   else if(R.f==="pause")bx.pause=Math.max(+bx.pause||0,R.v);
@@ -4364,6 +4531,9 @@ function boxLessons(tr){
   Object.entries(group(tr,t=>t.session)).forEach(([k,v])=>cand("win",k,v,
     (a,b)=>`${a.n} trades in this window, ${n2(a.totR)}R — ${n2(a.exp)}R each, against ${n2(b.exp)}R in your other hours.`,
     `Do not trade the ${esc(k)} window in the next box. Close the platform for it if you have to.`));
+  if(SUBS().length)Object.entries(group(tr,t=>{const x=subOf(t.time);return x&&x!=="outside"?x:""})).forEach(([k,v])=>cand("sub",k,v,
+    (a,b)=>`${a.n} trades in ${esc(k)}, ${n2(a.totR)}R — ${n2(a.exp)}R each, against ${n2(b.exp)}R in the rest of your day.`,
+    `Stay out of ${esc(k)} for the next box.`));
   Object.entries(group(tr,t=>t.grade)).forEach(([k,v])=>{ if(gradePol(k)!=="good")cand("grade",k,v,
     (a,b)=>`Grade ${esc(k)} setups returned ${n2(a.exp)}R each over ${a.n} trades. Everything rated higher returned ${n2(b.exp)}R.`,
     `Only take grade ${esc(names("grades").filter(g=>gradePol(g)==="good").join("/")||"A")} setups next box. If you have to grade it ${esc(k)}, it is a pass.`)});
@@ -4397,7 +4567,7 @@ function boxLessons(tr){
      fix:"Next box, leave half the position on until the target or a structure break. Measure whether it pays before deciding."})}
   /* what earned the box, so it is protected rather than tinkered with */
   const keep=[];
-  [["strat",t=>t.strat],["win",t=>t.session]].forEach(([type,f])=>{
+  [["strat",t=>t.strat],["win",t=>t.session],...(SUBS().length?[["sub",t=>{const x=subOf(t.time);return x&&x!=="outside"?x:""}]]:[])].forEach(([type,f])=>{
     Object.entries(group(tr,f)).forEach(([k,v])=>{const s=stats(v);
       if(s.n>=minN&&s.exp>0&&s.exp>S.exp)keep.push({key:type+":"+k,kind:"strength",title:lessonLabel(type+":"+k),n:s.n,totR:s.totR,exp:s.exp,
         why:`${s.n} trades, ${n2(s.totR)}R, ${n2(s.exp)}R each — better than the box as a whole.`,
@@ -4754,6 +4924,7 @@ function renderBoxReport(){
     <div class="bdgrid">
       ${bdTable("By strategy",tr,t=>t.strat)}
       ${bdTable("By session window",tr,t=>t.session)}
+      ${SUBS().length?bdTable("By sub-session",tr,t=>subOf(t.time),{order:(a,b)=>subStart(a)-subStart(b)}):""}
       ${bdTable("By setup grade",tr,t=>t.grade,{order:(a,b)=>a.localeCompare(b)})}
       ${bdTable("By mental state",tr,t=>t.emo)}
       ${bdTable("By rule adherence",tr,t=>t.adh)}
@@ -5378,7 +5549,7 @@ function render(){
   document.getElementById("tables").innerHTML=T.map(([n,k],i)=>tableFor(n,tr,k,i)).join("");
   requestAnimationFrame(()=>document.querySelectorAll("#tables .bar>i").forEach(b=>b.style.width=b.dataset.w+"%"));
   buildForm();renderBoxes();renderBoxForm();insights(tr);renderData();renderChecklist();renderQueue();renderBulk();renderEditors();renderCF();renderBulkList();renderChkEditor();
-  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderReport();renderConfidence();renderRisk();renderDecay();
+  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderSubs();renderReport();renderConfidence();renderRisk();renderDecay();
   observe();spy();
 }
 function tableFor(name,tr,key,idx){
@@ -5753,6 +5924,7 @@ function DIMS(){
   const base=[
     {k:"strat",l:"Strategy",list:()=>names("strategies")},
     {k:"session",l:"Time block",list:()=>names("sessions").concat(["Outside blocks"])},
+    ...(SUBS().length?[{k:"sub",l:"Sub-session",list:()=>SUBS().slice().sort((a,b)=>mins(a.from)-mins(b.from)).map(subName).concat(["outside"]),get:t=>subOf(t.time)}]:[]),
     {k:"day",l:"Weekday",list:()=>["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]},
     {k:"hour",l:"Hour",list:null,get:t=>String(t.time).slice(0,2)+":00"},
     {k:"wgrade",l:"Window weight",list:()=>["A","B","C"],get:t=>blockGrade(t.time)||"unweighted"},
@@ -6478,7 +6650,11 @@ function todayTrades(){const d=todayStr();return DB.trades.filter(t=>t.date===d)
 function gateState(){
   const now=new Date(), hhmm=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
   const td=todayTrades(), stops=td.filter(isStop).length, scratches=td.filter(isScratch).length;
-  const blk=blockOf(hhmm), grade=blk&&blk.grade?blk.grade:"";
+  /* The windows are written in the platform's clock; this computer's clock runs ahead
+     of it by the Chart Clock gap. Judging "which window is it now" on the computer's
+     clock put the gate half an hour early. */
+  const ph=(chartOff()?shiftHM(hhmm,-chartOff()).t:"")||hhmm;
+  const blk=blockOf(ph), grade=blk&&blk.grade?blk.grade:"";
   const g=G(), lines=[], order=["A","B","C"];
   let bad=0,warn=0;
 
@@ -6511,10 +6687,20 @@ function gateState(){
     lines.push([ok?"y":"q","This window has paid",`${n2(hs.exp)}R each · ${hs.n} trades`]);
   }else lines.push(["q","This window has paid",`only ${hs.n} trades — unknown`]);
 
+  if(SUBS().length){
+    const cur=subOf(ph), hs2=stats(DB.trades.filter(t=>subOf(t.time)===cur));
+    if(cur&&cur!=="outside"){
+      if(hs2.n>=M.slice){const ok=hs2.exp>0; if(!ok)warn++;
+        lines.push([ok?"y":"q","Sub-session "+cur,`${n2(hs2.exp)}R each · ${hs2.n} trades`]);}
+      else lines.push(["q","Sub-session "+cur,`only ${hs2.n} trades so far`]);
+    }
+  }
   const bx=boxes().find(b=>b.status==="active");
   if(bx){
     if(blk&&Array.isArray(bx.noWin)&&bx.noWin.includes(blk.name)){bad++;
       lines.push(["n","Box rule",`no trades in the ${blk.name} window`]);}
+    if(Array.isArray(bx.noSub)&&bx.noSub.includes(subOf(ph))){bad++;
+      lines.push(["n","Box rule",`no trades in ${subOf(ph)}`]);}
     if(bx.minGrade&&blk&&grade&&gradeRank(grade)>gradeRank(bx.minGrade)){bad++;
       lines.push(["n","Box rule",`grade ${bx.minGrade} or better — this window is ${grade}`]);}
     if(+bx.cap>0){const ok=td.length<+bx.cap; if(!ok)bad++;
@@ -6524,7 +6710,7 @@ function gateState(){
       if(last&&isStop(last)){
         const mm=x=>{const m=String(x||"").match(/^(\d{1,2}):(\d{2})/);return m?+m[1]*60+ +m[2]:null};
         const end=mm(last.ctime)!==null?mm(last.ctime):(mm(last.time)!==null?mm(last.time)+(+last.dur||0):null);
-        const nowM=now.getHours()*60+now.getMinutes(), left=end===null?0:+bx.pause-(nowM-end);
+        const nowM=mins(ph), left=end===null?0:+bx.pause-(((nowM-end)%1440+1440)%1440);   // both on the platform's clock
         if(left>0){bad++;lines.push(["n","Pause after a stop",`${left} more minute${left===1?"":"s"}`]);}
         else lines.push(["y","Pause after a stop","done"]);
       }
@@ -8315,7 +8501,7 @@ function spy(){
       document.querySelectorAll("#secnav a").forEach(a=>a.classList.toggle("act",a.dataset.s===e.target.id));
     });
   },{rootMargin:"-100px 0px -65% 0px"});
-  document.querySelectorAll("#s-metrics,#s-equity,#s-rolling,#s-dist,#s-daily,#s-heat,#s-eff,#s-monthly,#s-windows,#s-cross,#s-whatif,#s-disc,#s-tables")
+  document.querySelectorAll("#s-metrics,#s-equity,#s-rolling,#s-dist,#s-daily,#s-heat,#s-eff,#s-monthly,#s-windows,#s-subs,#s-cross,#s-whatif,#s-disc,#s-tables")
     .forEach(el=>SPY.observe(el));
 }
 window.addEventListener("scroll",()=>{
@@ -8328,7 +8514,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.8";
+const APP_VERSION="1.0.0-beta.9";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

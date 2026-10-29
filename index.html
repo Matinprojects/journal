@@ -455,6 +455,28 @@ table.hxt td.hx .hn{display:block;font-size:9.5px;color:rgba(255,255,255,.65)}
 table.hxt td.hx.tot{box-shadow:inset 0 0 0 1px rgba(212,175,55,.35)}
 table.hxt td.hx:hover{outline:1.5px solid var(--gold);outline-offset:1px}
 @media (max-width:760px){.mcals{grid-template-columns:1fr}.mg .dc .dr{font-size:10.5px}}
+.hlz{margin:4px 0 16px;padding:12px 14px;border-radius:var(--r);background:rgba(255,255,255,.02);border:1px solid var(--line2)}
+.hlchips{margin-bottom:8px}
+.chip.hlc{max-width:100%}.chip.hlc .hi{margin-right:6px}.chip.hlc.warn .hi{color:#F2BB63}.chip.hlc.edge .hi{color:var(--gold)}
+.chip.hlc .hs{margin-left:8px;font-size:9.5px}
+.hlon{display:grid;gap:6px;margin:6px 0 10px}
+.hlrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:10px;background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.18)}
+.hlrow .ht{flex:1;min-width:160px;font-size:13px}.hlrow .hlq{font-size:11px;color:var(--dim)}
+.hb{border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--txt2);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
+.hb.yes{background:rgba(63,207,142,.18);border-color:rgba(63,207,142,.5);color:#5FE0A6}
+.hb.no{background:rgba(240,84,79,.16);border-color:rgba(240,84,79,.5);color:#F5716C}
+.hlnew{gap:8px;flex-wrap:wrap}
+.hlday{display:flex;gap:6px;flex-wrap:wrap;white-space:normal}
+.hlp{font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.2)}
+.hlp.yes{border-color:rgba(63,207,142,.45)}.hlp.no{border-color:rgba(240,84,79,.45)}
+a.hledit{font-size:11px;color:var(--gold-lt)}
+.playbook{padding:12px 14px;border-radius:14px;border:1px solid rgba(63,207,142,.3);background:rgba(63,207,142,.05);margin-bottom:14px}
+.pbi{display:flex;gap:10px;align-items:baseline;padding:5px 0}.pbi.warn .hi{color:#F2BB63}.pbi.edge .hi{color:#5FE0A6}
+table.hlt td.hi{font-size:15px}table.hlt td.hi.warn{color:#F2BB63}table.hlt td.hi.edge{color:var(--gold)}
+.wil{position:relative;height:8px;border-radius:9px;background:rgba(255,255,255,.05);min-width:110px}
+.wil i{position:absolute;top:0;bottom:0;border-radius:9px;background:rgba(212,175,55,.6)}
+.wil b{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:rgba(255,255,255,.5)}
+tr.hldet td{background:rgba(255,255,255,.015)}
 .runzone{margin:6px 0 16px;padding:14px 15px;border-radius:var(--r);
   background:rgba(255,255,255,.02);border:1px solid var(--line2)}
 .calib{margin-top:16px;padding:15px 16px;border-radius:var(--r);
@@ -1397,6 +1419,11 @@ table.hxt td.hx:hover{outline:1.5px solid var(--gold);outline-offset:1px}
 
 <!-- 4 · INSIGHTS -->
 <div class="page">
+  <div class="card rv" id="s-hl">
+    <h2><span class="dot"></span>Your Highlights<span class="tail" id="hlTail"></span></h2>
+    <p class="hint">The things you have noticed yourself, and how often they actually held. Proven ones become your playbook and appear in the Trade Gate.</p>
+    <div id="hlBody"></div>
+  </div>
   <div class="card rv" id="s-report">
     <h2><span class="dot"></span>Trading Report<span class="tail" id="rpTail"></span></h2>
     <p class="hint">One read of everything you have logged: where your money actually comes from, where it leaks out, and what to change first. Every line is measured against your own trades — nothing here is generic advice, and nothing is shown until there is enough data to mean it.</p>
@@ -1905,7 +1932,7 @@ const keyFor=i=>KEYS[i]||"";
    STATE
    ============================================================ */
 let DB={trades:[],sessions:[],checks:{},rules:[],map:{},cfg:null,seen:false,boxes:[],
-        money:[],invests:[],sync:null,lock:null,cutoff:"",gone:[],wiped:{}};
+        money:[],invests:[],sync:null,lock:null,cutoff:"",gone:[],wiped:{},hl:[]};
 /* Some browsers refuse storage entirely to a page opened straight from a file.
    Silently losing every trade is the worst possible failure here, so find out now. */
 let STORE_OK=true, STORE_WHY="";
@@ -1923,6 +1950,8 @@ try{const s=localStorage.getItem("tj_v1");if(s)DB=Object.assign(DB,JSON.parse(s)
   ["trades","sessions","rules","boxes","money","invests"].forEach(arr);
   if(!Array.isArray(DB.gone))DB.gone=[];     // new in this version; absence is not damage
   if(!DB.wiped||typeof DB.wiped!=="object"||Array.isArray(DB.wiped))DB.wiped={};
+  if(!Array.isArray(DB.hl))DB.hl=[];
+  DB.hl=DB.hl.filter(h=>h&&typeof h==="object"&&h.id&&typeof h.text==="string");
   DB.sessions=DB.sessions.filter(x=>x&&typeof x==="object"&&x.date);
   DB.sessions.forEach(x=>{if(!x.id)x.id="d:"+x.date});
   DB.rules=DB.rules.filter(x=>typeof x==="string"&&x.trim());
@@ -3034,6 +3063,8 @@ const HELP={
  fa:["اگر یک دسته ترید را نزده بودی، نتیجه‌ات چه می‌شد — یک استراتژی، یک پنجره، یک حالت ذهنی.","یک دسته را خاموش کن و ببین نمودار و عددها بدون آن تریدها چطور عوض می‌شوند.","اگر حذف یک دسته همه‌چیز را بهتر کند، آن دسته دارد از جیبت پول می‌برد."]},
 "Discipline Score":{en:["How closely you followed your own rules, as one score out of 100.","Built from rule adherence, trades after your stop limit and off-plan trades. It is about behaviour, not profit.","80 and above. A profitable period with a low score is luck, not skill."],
  fa:["چقدر به قانون‌های خودت پایبند بودی، به صورت یک نمره از ۱۰۰.","از پایبندی، تریدهای بعد از سقف استاپ و تریدهای خارج از پلن ساخته می‌شود. دربارهٔ رفتار است، نه سود.","۸۰ به بالا. دوره‌ای پرسود با نمرهٔ پایین، شانس است نه مهارت."]},
+"Your Highlights":{en:["Your own observations — patterns, conditions, traps — and how often each one actually held.","Write one while tagging a trade, then on later trades mark ✓ held or ✗ didn't. The range shows what the real hit rate could be; once it sits above 50% the note is proven and joins your playbook.","A short playbook of proven notes, and the courage to delete the rejected ones."],
+ fa:["مشاهده‌های خودت — الگوها، شرایط، تله‌ها — و اینکه هر کدام چند بار واقعاً درست درآمد.","موقع تگ زدن یک ترید بنویسش، بعد روی تریدهای بعدی بزن ✓ درست بود یا ✗ نبود. محدوده نشان می‌دهد درصد واقعی درستی‌اش چقدر می‌تواند باشد؛ وقتی کل محدوده بالای ۵۰٪ برود، نکته ثابت شده و وارد پلی‌بوکت می‌شود.","یک پلی‌بوک کوتاه از نکته‌های ثابت‌شده، و جرئت پاک کردن نکته‌های ردشده."]},
 "Trading Report":{en:["A written review of your whole record: what works, where money leaks, and what to do next.","Read the leaks from the top — the first one costs you the most. Each one says how much and what to change.","Few leaks, small ones, and a clear 'what is working' list."],
  fa:["یک گزارش نوشتاری از کل سابقه‌ات: چه چیزی جواب می‌دهد، پول از کجا نشت می‌کند، و قدم بعدی چیست.","نشت‌ها را از بالا بخوان — اولی بیشترین هزینه را دارد. هر کدام می‌گوید چقدر و چه چیزی را عوض کنی.","نشت کم و کوچک، و یک فهرست روشن از چیزهایی که جواب می‌دهند."]},
 "Automated Analysis":{en:["Short findings the journal noticed in your trades.","Each line is one pattern with the numbers behind it.","Act on the ones with enough trades behind them; note the rest."],
@@ -3129,6 +3160,133 @@ function addHelp(){
     c.textContent=t[0]; c.dir=L==="fa"?"rtl":"ltr";
   });
 }
+
+/* ============================================================
+   HIGHLIGHTS — the trader's own observations, tested like hypotheses
+   "On FOMC days London trades better." "After the major high is taken and a
+   5-minute candle closes against it, skip 1-minute mitigations." These are the
+   most valuable things a trader learns, and the easiest to fool yourself about:
+   memory keeps the times a note was right and drops the times it was wrong. So
+   every use records whether it held, and a note is only called proven when the
+   record says so — not when it feels true.
+   ============================================================ */
+const HL=()=>Array.isArray(DB.hl)?DB.hl:(DB.hl=[]);
+const hlGet=id=>HL().find(h=>String(h.id)===String(id));
+/* Wilson score interval: what the true hit rate could be, given k of n */
+function wilson(k,n,z){z=z||1.96; if(!n)return [0,1];
+  const p=k/n, d=1+z*z/n, c=p+z*z/(2*n), m=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n));
+  return [Math.max(0,(c-m)/d),Math.min(1,(c+m)/d)];}
+function hlEvidence(id,trades){
+  const tr=(trades||DB.trades).filter(t=>Array.isArray(t.hl)&&t.hl.some(x=>String(x.id)===String(id)));
+  let yes=0,no=0;
+  tr.forEach(t=>{const x=t.hl.find(x=>String(x.id)===String(id)); if(x.ok===1)yes++; else if(x.ok===-1)no++});
+  const n=yes+no, [lo,hi]=wilson(yes,n);
+  const status=n>=3&&lo>0.5?"proven":n>=3&&hi<0.5?"rejected":"testing";
+  /* how many more times it must hold, in a row, before the record proves it */
+  let need=0; if(status==="testing"){for(let k=1;k<=30;k++){if(wilson(yes+k,n+k)[0]>0.5){need=k;break}}}
+  const rest=(trades||DB.trades).filter(t=>!tr.includes(t));
+  return {tr,seen:tr.length,yes,no,n,rate:n?yes/n:0,lo,hi,S:stats(tr),R:stats(rest),status,need,
+          last:tr.map(t=>t.date).sort().pop()||""};
+}
+const hlWord={proven:"proven",testing:"testing",rejected:"rejected"};
+const hlTag={proven:"g",testing:"a",rejected:"r"};
+const hlIcon=h=>h&&h.kind==="warn"?"⚠":"✦";
+function hlNew(text,kind){
+  text=String(text||"").trim(); if(!text)return null;
+  const dup=HL().find(h=>h.text.toLowerCase()===text.toLowerCase()); if(dup)return dup;
+  const h={id:"h"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),text,kind:kind==="warn"?"warn":"edge",created:todayStr(),m:Date.now()};
+  HL().push(h); return h;
+}
+/* the library, most useful first: what is on this trade, then proven, then recently used */
+function hlOrdered(attached){
+  const on=new Set((attached||[]).map(x=>String(x.id)));
+  const lastUse={};DB.trades.forEach(t=>(t.hl||[]).forEach(x=>{if(!lastUse[x.id]||lastUse[x.id]<t.date)lastUse[x.id]=t.date}));
+  const rank=h=>(on.has(String(h.id))?0:1);
+  return HL().slice().sort((a,b)=>rank(a)-rank(b)||String(lastUse[b.id]||b.created||"").localeCompare(String(lastUse[a.id]||a.created||"")));
+}
+/* one editor, used in the tagging queue and on any trade afterwards */
+function hlEditor(list,ns){
+  const on={};(list||[]).forEach(x=>on[String(x.id)]=x.ok);
+  const lib=hlOrdered(list);
+  return `<div class="hlz">
+    ${lib.length?`<div class="chips hlchips">${lib.map(h=>{const has=on[String(h.id)]!==undefined, E=hlEvidence(h.id);
+      return `<div class="chip hlc ${has?"on":""} ${h.kind}" onclick="${ns}Toggle('${jsq(h.id)}')" title="${esc(hlWord[E.status])} · held ${E.yes} of ${E.n}">
+        <span class="hi">${hlIcon(h)}</span>${esc(h.text)}<span class="hs tag ${hlTag[E.status]}">${E.n?E.yes+"/"+E.n:"new"}</span></div>`}).join("")}</div>`
+      :`<div class="mini">No highlights yet. Write your first one below.</div>`}
+    ${(list||[]).length?`<div class="hlon">${list.map(x=>{const h=hlGet(x.id);if(!h)return "";
+      return `<div class="hlrow"><span class="hi">${hlIcon(h)}</span><span class="ht">${esc(h.text)}</span>
+        <span class="hlq">Did it hold here?</span>
+        <button class="hb ${x.ok===1?"yes":""}" onclick="${ns}Ok('${jsq(h.id)}',1)">✓ held</button>
+        <button class="hb ${x.ok===-1?"no":""}" onclick="${ns}Ok('${jsq(h.id)}',-1)">✗ didn't</button></div>`}).join("")}</div>`:""}
+    <div class="row hlnew">
+      <select id="${ns}Kind" style="width:auto"><option value="edge">✦ An edge to look for</option><option value="warn">⚠ A trap to avoid</option></select>
+      <input id="${ns}Text" placeholder="A new highlight — e.g. FOMC day: London session trades better" style="flex:1;min-width:220px"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();${ns}New()}">
+      <button class="btn sec sm" onclick="${ns}New()">Add</button>
+    </div>
+  </div>`;
+}
+/* --- tagging-queue binding --- */
+function tqHlToggle(id){TQ.hl=TQ.hl||[];const i=TQ.hl.findIndex(x=>String(x.id)===String(id));
+  if(i>=0)TQ.hl.splice(i,1);else TQ.hl.push({id,ok:0});renderQueue()}
+function tqHlOk(id,v){const x=(TQ.hl||[]).find(x=>String(x.id)===String(id));if(x){x.ok=x.ok===v?0:v;renderQueue()}}
+function tqHlNew(){const t=document.getElementById("tqHlText"),k=document.getElementById("tqHlKind");
+  const h=hlNew(t&&t.value,k&&k.value); if(!h)return;
+  TQ.hl=TQ.hl||[]; if(!TQ.hl.some(x=>x.id===h.id))TQ.hl.push({id:h.id,ok:0}); save(); renderQueue();
+  setTimeout(()=>{const e=document.getElementById("tqHlText");if(e)e.focus()},0)}
+/* --- any trade, after the fact --- */
+let HLT=null;
+function openTradeHl(tid){HLT=String(tid);const el=document.getElementById("thl_"+HLT);if(el){el.innerHTML=hlEditor((DB.trades.find(t=>String(t.id)===HLT)||{}).hl,"thl");}}
+function thlTrade(){return DB.trades.find(t=>String(t.id)===HLT)}
+function thlRefresh(){const t=thlTrade();if(!t)return;const el=document.getElementById("thl_"+HLT);if(el)el.innerHTML=hlEditor(t.hl,"thl")}
+function thlToggle(id){const t=thlTrade();if(!t)return;t.hl=Array.isArray(t.hl)?t.hl:[];
+  const i=t.hl.findIndex(x=>String(x.id)===String(id));if(i>=0)t.hl.splice(i,1);else t.hl.push({id,ok:0});save();thlRefresh()}
+function thlOk(id,v){const t=thlTrade();if(!t)return;const x=(t.hl||[]).find(x=>String(x.id)===String(id));if(x){x.ok=x.ok===v?0:v;save();thlRefresh()}}
+function thlNew(){const t=thlTrade();if(!t)return;const tx=document.getElementById("thlText"),k=document.getElementById("thlKind");
+  const h=hlNew(tx&&tx.value,k&&k.value);if(!h)return;t.hl=Array.isArray(t.hl)?t.hl:[];if(!t.hl.some(x=>x.id===h.id))t.hl.push({id:h.id,ok:0});save();thlRefresh()}
+/* --- the library itself --- */
+let HLOPEN="";
+function renderHighlights(){
+  const host=document.getElementById("hlBody"); if(!host)return;
+  const tail=document.getElementById("hlTail");
+  const L=HL().map(h=>({h,E:hlEvidence(h.id)}));
+  const order={proven:0,testing:1,rejected:2};
+  L.sort((a,b)=>order[a.E.status]-order[b.E.status]||b.E.n-a.E.n);
+  const pv=L.filter(x=>x.E.status==="proven");
+  if(tail)tail.textContent=L.length?`${pv.length} proven · ${L.length} in all`:"";
+  if(!L.length){host.innerHTML=`<div class="mini">No highlights yet. While you tag a trade, write down anything you noticed — a pattern, a condition, a trap — then mark on later trades whether it held. This page keeps score.</div>`;return}
+  host.innerHTML=`
+  ${pv.length?`<div class="playbook"><div class="st2">Your playbook — proven by your own trades</div>
+    ${pv.map(({h,E})=>`<div class="pbi ${h.kind}"><span class="hi">${hlIcon(h)}</span><b>${esc(h.text)}</b><span class="mini">held ${E.yes} of ${E.n}</span></div>`).join("")}</div>`:""}
+  <div class="scroll"><table class="hlt"><thead><tr><th></th><th>Highlight</th><th>Seen</th><th>Held</th><th>Could truly be</th><th>R on those trades</th><th>Status</th><th></th></tr></thead><tbody>
+  ${L.map(({h,E})=>`<tr class="${HLOPEN===h.id?"open":""}">
+    <td class="hi ${h.kind}">${hlIcon(h)}</td>
+    <td><a href="javascript:void 0" onclick="HLOPEN=HLOPEN==='${jsq(h.id)}'?'':'${jsq(h.id)}';renderHighlights()">${esc(h.text)}</a>
+      <div class="mini">${h.kind==="warn"?"a trap to avoid":"an edge to look for"}${E.last?" · last seen "+esc(E.last):""}</div></td>
+    <td class="mono">${E.seen}</td>
+    <td class="mono">${E.n?`${E.yes}/${E.n}`:"—"}</td>
+    <td>${E.n?`<div class="wil"><i style="left:${(E.lo*100).toFixed(0)}%;width:${((E.hi-E.lo)*100).toFixed(0)}%"></i><b style="left:50%"></b></div>
+      <div class="mini">${pct(E.lo)} – ${pct(E.hi)}</div>`:`<span class="mini">mark ✓/✗ on trades</span>`}</td>
+    <td class="mono ${cls(E.S.exp)}">${E.seen?n2(E.S.exp)+"R":"—"}<div class="mini">others ${n2(E.R.exp)}R</div></td>
+    <td><span class="tag ${hlTag[E.status]}">${hlWord[E.status]}</span>${E.status==="testing"&&E.n>=4&&E.rate<=0.34?`<div class="mini neg">leaning towards rejected</div>`:
+      E.status==="testing"&&E.need&&E.need<=10?`<div class="mini">${E.need} more in a row to prove</div>`:""}</td>
+    <td style="white-space:nowrap"><button class="iconbtn" title="Rename" onclick="hlRename('${jsq(h.id)}')">✎</button>
+      <button class="iconbtn" title="Switch edge / trap" onclick="hlFlip('${jsq(h.id)}')">⇄</button>
+      <button class="iconbtn" title="Delete" onclick="hlDel('${jsq(h.id)}')">×</button></td></tr>
+    ${HLOPEN===h.id?`<tr class="hldet"><td></td><td colspan="7">${E.tr.length?E.tr.slice().sort((a,b)=>(b.date+b.time).localeCompare(a.date+a.time)).slice(0,30).map(t=>{
+        const x=t.hl.find(x=>String(x.id)===String(h.id));
+        return `<div class="vio"><span class="d">${esc(t.date)} ${esc(t.time||"")}</span><span>${esc(t.strat||"")}${t.session?" · "+esc(t.session):""}</span>
+          <span class="tag ${x.ok===1?"g":x.ok===-1?"r":"a"}">${x.ok===1?"held":x.ok===-1?"didn't hold":"not marked"}</span>
+          <span class="d mono ${cls(t.r)}" style="margin-left:auto">${n2(t.r)}R</span></div>`}).join(""):`<div class="mini">Not on any trade yet.</div>`}</td></tr>`:""}`).join("")}
+  </tbody></table></div>
+  <div class="mini" style="margin-top:8px">"Could truly be" is the range the real hit rate probably sits in, given how many times you have checked it. A highlight is called proven once that whole range sits above 50% — five out of five, or nine out of ten — and rejected once it sits below.</div>`;
+}
+function hlRename(id){const h=hlGet(id);if(!h)return;const v=prompt("Rename this highlight",h.text);if(v&&v.trim()){h.text=v.trim();h.m=Date.now();save();render()}}
+function hlFlip(id){const h=hlGet(id);if(!h)return;h.kind=h.kind==="warn"?"edge":"warn";h.m=Date.now();save();render()}
+function hlDel(id){const h=hlGet(id);if(!h)return;const n=hlEvidence(id).seen;
+  if(!confirm(`Delete "${h.text}"?${n?`\n\nIt is on ${n} trade${n===1?"":"s"}; it will be removed from them.`:""}`))return;
+  bury("hl",id);DB.hl=HL().filter(x=>x.id!==id);DB.trades.forEach(t=>{if(Array.isArray(t.hl))t.hl=t.hl.filter(x=>String(x.id)!==String(id))});
+  save();render();toast("Highlight deleted")}
 
 let FILEBUF="";
 function ingestProbe(rows,map,opt){
@@ -3247,7 +3405,7 @@ document.addEventListener("paste",e=>{
 /* ============================================================
    TAG QUEUE
    ============================================================ */
-let TQ={i:0,step:0,draft:{},shot:"",review:"",best:"",worst:"",last:null};
+let TQ={i:0,step:0,draft:{},shot:"",review:"",best:"",worst:"",hl:[],last:null};
 /* Key names differ per platform and the glyphs are guesswork for most people.
    Spell them the way the keyboard in front of them is labelled. */
 const IS_MAC=/Mac|iPhone|iPad|iPod/.test((navigator.platform||"")+(navigator.userAgent||""));
@@ -3444,6 +3602,8 @@ function renderQueue(){
         </div>
         <div id="runOut" class="mini" style="margin-top:10px"></div>
       </div>
+      <div class="sec-t">Highlights<span class="mini" style="text-transform:none;letter-spacing:0;margin-left:8px">something you noticed? write it once, then mark on later trades whether it held</span></div>
+      ${hlEditor(TQ.hl,"tqHl")}
       <div class="sec-t">Chart &amp; note<span class="mini" style="text-transform:none;letter-spacing:0;margin-left:8px">optional — but this is what you'll actually read back in a month</span></div>
       <div class="evid">
         <div class="shotzone ${TQ.shot?"has":""}" id="shotZone"
@@ -3487,9 +3647,9 @@ function renderQueue(){
 }
 /* move through the queue without tagging anything */
 function prevTrade(){const q=untagged();if(q.length<2)return;
-  TQ.i=(TQ.i-1+q.length)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";TQ.best="";TQ.worst="";renderQueue()}
+  TQ.i=(TQ.i-1+q.length)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";TQ.best="";TQ.worst="";TQ.hl=[];renderQueue()}
 function nextTrade(){const q=untagged();if(q.length<2)return;
-  TQ.i=(TQ.i+1)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";TQ.best="";TQ.worst="";renderQueue()}
+  TQ.i=(TQ.i+1)%q.length;TQ.step=0;TQ.draft={};TQ.shot="";TQ.review="";TQ.best="";TQ.worst="";TQ.hl=[];renderQueue()}
 
 /* Reopen the trade you just saved. Its tags are stripped so it returns to the
    queue, and they are loaded back into the draft so you only change what was wrong. */
@@ -3574,6 +3734,7 @@ function commitTag(){
     if(run.mae!==undefined){t.mae=+n2(run.mae); t.maeP=+TQ.worst}
   }
   t.review=(TQ.review||"").trim();
+  t.hl=(TQ.hl||[]).map(x=>({id:x.id,ok:x.ok}));
   const img=TQ.shot;
   if(img){
     t.shot=1;
@@ -3581,7 +3742,7 @@ function commitTag(){
     shotSet(t,img).catch(()=>{t.shot=0;save();toast("The image could not be stored",1)});
   }
   TQ.last={id:t.id,date:t.date,time:t.time,strat:t.strat};
-  TQ.draft={grade:d.grade}; TQ.step=0; TQ.i=0; TQ.shot=""; TQ.review=""; TQ.best=""; TQ.worst="";
+  TQ.draft={grade:d.grade}; TQ.step=0; TQ.i=0; TQ.shot=""; TQ.review=""; TQ.best=""; TQ.worst=""; TQ.hl=[];
   save();render();
 }
 function applyRestOfDay(){
@@ -3592,7 +3753,7 @@ function applyRestOfDay(){
   TQ.draft={};TQ.step=0;TQ.i=0;save();render();toast(`${n} trades tagged for ${t.date}`);
 }
 function skipTag(){const q=untagged();TQ.i=(TQ.i+1)%Math.max(1,q.length);
-  TQ.draft={};TQ.step=0;TQ.shot="";TQ.review="";renderQueue()}
+  TQ.draft={};TQ.step=0;TQ.shot="";TQ.review="";TQ.hl=[];renderQueue()}
 document.addEventListener("keydown",e=>{
   if(!document.querySelectorAll(".page")[0].classList.contains("on"))return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
@@ -4701,6 +4862,9 @@ function renderBoxDay(bx,k){
             ${scr?`<div class="b" style="color:var(--gold-lt)">scratched at breakeven — not counted as a stop</div>`:""}
             ${v?`<div class="b" style="color:var(--loss)">${v.map(esc).join(" · ")}</div>`:""}
             ${t.review?`<div class="b" style="color:var(--txt2);white-space:normal">${esc(t.review)}</div>`:""}
+            ${(t.hl||[]).length?`<div class="b hlday">${t.hl.map(x=>{const h=hlGet(x.id);return h?`<span class="hlp ${h.kind} ${x.ok===1?"yes":x.ok===-1?"no":""}">${hlIcon(h)} ${esc(h.text)}${x.ok===1?" ✓":x.ok===-1?" ✗":""}</span>`:""}).join("")}</div>`:""}
+            <div class="b"><a href="javascript:void 0" class="hledit" onclick="openTradeHl('${jsq(String(t.id))}')">${(t.hl||[]).length?"edit highlights":"+ highlight"}</a></div>
+            <div id="thl_${esc(String(t.id))}"></div>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
             ${t.shot?`<img class="th" alt="chart" data-shot="${jsq(String(t.id))}" onclick="viewShot('${jsq(String(t.id))}')">`:""}
@@ -4935,6 +5099,11 @@ function prevBox(bx){
 }
 /* did a lesson carried in from the last box actually change anything? */
 function judgeLesson(L,tr){
+  if(String(L.key).startsWith("hl:")){
+    const E=hlEvidence(String(L.key).slice(3),tr);
+    if(E.n<2)return {v:"thin",w:E.seen?`seen ${E.seen}× — mark whether it held`:"not seen yet this box",now:null};
+    return {v:E.rate>=0.7?"good":E.rate<0.5?"bad":"warn",w:`held ${E.yes} of ${E.n} this box`,now:null};
+  }
   if(L.key==="custom"||String(L.key).startsWith("custom"))return {v:L.done?"good":"thin",w:L.done?"you marked it done":"tick it when you have",now:null};
   const now=measure(L.key,tr), was=L.was||{};
   if(now.N<10)return {v:"thin",w:"too few trades yet to judge",now};
@@ -5216,6 +5385,17 @@ function renderBoxReport(){
     ${(bx.carry||[]).length?`<div class="mini" style="margin-top:10px;color:var(--gold-lt)">${(bx.carry||[]).length} lesson${(bx.carry||[]).length===1?"":"s"} will be pinned to the next box you open, shown in the Trade Gate, and checked when that box ends.</div>`:""}
   </div>
 
+  ${(()=>{const used=HL().map(h=>({h,E:hlEvidence(h.id,tr)})).filter(x=>x.E.seen);
+    if(!used.length)return "";
+    return `<div class="bxsec"><div class="st">Your highlights in this box<span>${used.length} used · tick to keep watching them next box</span></div>
+      ${used.map(({h,E})=>`<div class="lesson ${E.status==="proven"?"good":E.status==="rejected"?"bad":"warn"}">
+        <div class="lh"><label class="row" style="gap:9px;cursor:pointer;margin:0">
+          <input type="checkbox" ${(bx.carry||[]).some(c=>c.key==="hl:"+h.id)?"checked":""} onchange="toggleCarryHl('${jsq(h.id)}',this.checked)">
+          <b>${hlIcon(h)} ${esc(h.text)}</b></label>
+          <span class="tag ${hlTag[E.status]}">${hlWord[E.status]}</span></div>
+        <p>Seen on ${E.seen} trade${E.seen===1?"":"s"} in this box${E.n?`, held ${E.yes} of the ${E.n} times you checked`:", not yet marked held or not"}.
+          Those trades returned <b class="${cls(E.S.exp)}">${n2(E.S.exp)}R</b> each, against ${n2(E.R.exp)}R for the rest of the box.</p>
+      </div>`).join("")}</div>`})()}
   <div class="bxsec"><div class="st">Where the result came from</div>
     <div class="bdgrid">
       ${bdTable("By strategy",tr,t=>t.strat)}
@@ -5266,6 +5446,14 @@ function toggleRule(key,on){
   c.rule=on?ruleFor(key):null;
   save(); renderBoxReport();
   toast(on?"It will be a rule in your next box":"Back to a reminder");
+}
+function toggleCarryHl(id,on){
+  const bx=boxes().find(b=>b.id===BXR.id), h=hlGet(id); if(!bx||!h)return;
+  bx.carry=(bx.carry||[]).filter(c=>c.key!=="hl:"+id);
+  if(on){const E=hlEvidence(id,boxTrades(bx.id));
+    bx.carry.push({key:"hl:"+id,kind:"hl",title:h.text,fix:h.kind==="warn"?"Watch for it — and skip the trade when it appears.":"Watch for it — and take the trade when it appears.",
+      was:{n:E.n,yes:E.yes,seen:E.seen,N:boxTrades(bx.id).length,rate:E.rate,totR:E.S.totR},from:bx.id,fromName:bx.name});}
+  save(); renderBoxReport();
 }
 function addOwnLesson(){
   const i=document.getElementById("bxOwnLesson"), v=(i&&i.value||"").trim(); if(!v)return;
@@ -5845,7 +6033,7 @@ function render(){
   document.getElementById("tables").innerHTML=T.map(([n,k],i)=>tableFor(n,tr,k,i)).join("");
   requestAnimationFrame(()=>document.querySelectorAll("#tables .bar>i").forEach(b=>b.style.width=b.dataset.w+"%"));
   buildForm();renderBoxes();renderBoxForm();insights(tr);renderData();renderChecklist();renderQueue();renderBulk();renderEditors();renderCF();renderBulkList();renderChkEditor();
-  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderSubs();renderReport();renderConfidence();renderRisk();renderDecay();
+  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderSubs();renderHighlights();renderReport();renderConfidence();renderRisk();renderDecay();
   observe();spy();
   try{addHelp()}catch(e){}
 }
@@ -7106,6 +7294,10 @@ function drawGate(){
     </div>
     ${s.lines.map(([m,l,v])=>`<div class="gline"><span class="m ${m}">${m==="y"?"✓":m==="n"?"✕":"?"}</span>
       <span class="lbl">${esc(l)}</span><span class="val">${esc(v)}</span></div>`).join("")}
+    ${(()=>{const pb=HL().filter(h=>hlEvidence(h.id).status==="proven");if(!pb.length)return "";
+      return `<div class="gpromise"><div class="mini" style="letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:6px">Your playbook</div>
+        ${pb.map(h=>`<div class="gline"><span class="m ${h.kind==="warn"?"n":"y"}">${hlIcon(h)}</span><span class="lbl">${esc(h.text)}</span>
+          <span class="val">${h.kind==="warn"?"avoid":"look for"}</span></div>`).join("")}</div>`})()}
     ${activeLessons().length?`<div class="gpromise"><div class="mini" style="letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:6px">You promised yourself</div>
       ${activeLessons().map(c=>`<div class="gline"><span class="m q">◆</span><span class="lbl">${esc(c.title)}</span>
         <span class="val">${String(c.fix||"").replace(/<[^>]+>/g,"").split(".")[0]}</span></div>`).join("")}</div>`:""}
@@ -7702,7 +7894,7 @@ function renderDecay(){
    ============================================================ */
 const GIST_FILE="trading-journal.json";
 const TOKEN_KEY="tj_sync_token";          // kept out of CFG so it never rides along in an exported setup
-const SYNCED=["trades","boxes","money","invests","sessions"];
+const SYNCED=["trades","boxes","money","invests","sessions","hl"];
 let CLOUDING=false, CLOUD_TIMER=null;
 /* CLOUD_QUIET is up while a sync is itself saving. Without it, the sync's own save()
    scheduled another sync, which saved, which scheduled another — every open tab wrote
@@ -7710,7 +7902,7 @@ let CLOUDING=false, CLOUD_TIMER=null;
 var CLOUD_QUIET=false, CLOUD_PAUSE_UNTIL=0, CLOUD_SIG="";
 /* a fingerprint of exactly what would be sent, so nothing is sent twice */
 function cloudSig(){
-  const d=[DB.trades,DB.boxes,DB.money,DB.invests,DB.sessions,DB.rules,DB.checks,DB.map,DB.cutoff,DB.gone,DB.wiped,
+  const d=[DB.trades,DB.boxes,DB.money,DB.invests,DB.sessions,DB.rules,DB.hl,DB.checks,DB.map,DB.cutoff,DB.gone,DB.wiped,
            (()=>{const c=JSON.parse(JSON.stringify(CFG||{}));delete c.cloud;return c})()];
   const s=JSON.stringify(d); let h=0;
   for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0}
@@ -7763,6 +7955,7 @@ function richness(r){
   ["strat","grade","emo","adh","broke","review","exitreason","mfe","mae","shot"].forEach(k=>{
     const v=r[k]; if(v!==undefined&&v!==null&&v!==""&&v!==0)n++});
   if(r.cf&&typeof r.cf==="object")n+=Object.values(r.cf).filter(Boolean).length;
+  if(Array.isArray(r.hl))n+=r.hl.length;            // highlights are his work too
   return n;
 }
 /* Erasing everything is not a pile of individual deletions: one mark per kind says
@@ -7900,7 +8093,7 @@ function cloudPack(){
   return {format:"matin-journal-sync",version:1,app:APP_VERSION,
     saved:new Date().toISOString(),device:deviceName(),
     data:{trades:DB.trades,boxes:DB.boxes,money:DB.money,invests:DB.invests,
-          sessions:DB.sessions,rules:DB.rules,
+          sessions:DB.sessions,rules:DB.rules,hl:DB.hl,
           checks:DB.checks,map:DB.map,cutoff:DB.cutoff||"",gone:DB.gone||[],wiped:DB.wiped||{},cfg:CFG}};
 }
 
@@ -8842,7 +9035,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.11";
+const APP_VERSION="1.0.0-beta.12";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

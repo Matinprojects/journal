@@ -1689,7 +1689,15 @@ tr.hldet td{background:rgba(255,255,255,.015)}
     <div class="grid g2">
       <div><label>Your chart is ahead of your platform by (minutes)</label>
         <input type="number" step="15" id="n_choff" onchange="setChartOffset(this.value)">
-        <div class="mini" style="margin-top:6px">Negative if your chart is behind. 30 means your chart reads 16:56 when your platform says 16:26.</div></div>
+        <div class="mini" style="margin-top:6px" id="n_choffNote">Negative if your chart is behind. 30 means your chart reads 16:56 when your platform says 16:26.</div>
+        <label class="row" style="gap:8px;align-items:center;margin:12px 0 0;cursor:pointer">
+          <input type="checkbox" id="n_chdst" onchange="setChartDST(this.checked)">
+          <span>My platform's clock changes with US daylight saving</span></label>
+        <div id="n_chdstBox" style="margin-top:8px">
+          <label>…and from November to March the gap is (minutes)</label>
+          <input type="number" step="15" id="n_chwin" onchange="setChartWinter(this.value)">
+          <div class="mini" style="margin-top:6px">Most brokers run on New York time: UTC+3 in summer, UTC+2 in winter. If your own clock does not change (Tehran's does not), the gap grows by an hour on the first Sunday of November and shrinks back on the second Sunday of March. With this on, every trade is placed with the gap that applied on its own date.</div>
+        </div></div>
       <div><label>Don't know the number?</label>
         <button class="btn sec" style="width:100%" onclick="openCalib()">Compare the two clocks</button>
         <div class="mini" style="margin-top:6px">Read your platform's clock and your chart's clock as they stand right now. Ten seconds, and the answer is exact.</div></div>
@@ -2010,6 +2018,7 @@ function migrate(saved){
   if(Array.isArray(saved.checklist)&&saved.checklist.length)
     out.checklist=saved.checklist.filter(s=>s&&s.title).map(s=>({title:s.title,items:(s.items||[]).filter(i=>i&&i.t)}));
   if(saved.cloud&&typeof saved.cloud==="object")out.cloud=Object.assign(out.cloud||{},saved.cloud);
+  if(saved.chart&&typeof saved.chart==="object"){out.chart=Object.assign({offset:0},saved.chart);out.chart.dst=!!saved.chart.dst}
   if(saved.subs&&typeof saved.subs==="object")out.subs={clock:saved.subs.clock==="chart"?"chart":"platform",
     list:(Array.isArray(saved.subs.list)?saved.subs.list:[]).filter(w=>w&&w.from&&w.to).map(w=>({from:String(w.from),to:String(w.to),name:String(w.name||"")}))};
   ["thresholds","risk","gate","payout","chart"].forEach(k=>{if(saved[k])out[k]=Object.assign(out[k],saved[k])});
@@ -3445,7 +3454,27 @@ function copy(text,okMsg){
   else fail();
 }
 /* the same instant, told in the clock his charting app uses */
-const chartOff=()=>+(((CFG||{}).chart||{}).offset)||0;
+/* Most forex brokers run their server on New York close: UTC+3 while the US is on
+   summer time, UTC+2 the rest of the year. A trader whose own clock does not move
+   (Tehran, for one) sees the gap between the two jump by an hour twice a year — on
+   the second Sunday of March and the first Sunday of November. One fixed offset puts
+   every winter trade an hour off on the chart, and the Trade Gate an hour early. */
+function usDST(dateStr){
+  const d=dateStr?new Date(String(dateStr).slice(0,10)+"T12:00:00"):new Date();
+  if(isNaN(d))return false;
+  const y=d.getFullYear();
+  const nthSun=(m,n)=>{const x=new Date(y,m,1);x.setDate(1+((7-x.getDay())%7)+7*(n-1));return x};
+  const start=nthSun(2,2), end=nthSun(10,1);          // 2nd Sunday of March, 1st Sunday of November
+  return d>=start&&d<end;
+}
+const chartCfg=()=>((CFG||{}).chart)||{};
+/* minutes the chart runs ahead of the platform, on a given day (today if none) */
+function chartOff(dateStr){
+  const C=chartCfg(), base=+C.offset||0;
+  if(!C.dst)return base;                                   // the gap never moves
+  const w=(C.winter===undefined||C.winter===null||C.winter==="")?base+60:+C.winter;
+  return usDST(dateStr)?base:w;
+}
 function shiftHM(hm,mins){
   if(!/^\d{1,2}:\d{2}/.test(String(hm||"")))return {t:"",d:0};
   const [h,m]=String(hm).split(":").map(Number);
@@ -3455,17 +3484,17 @@ function shiftHM(hm,mins){
   return {t:String(Math.floor(tot/60)).padStart(2,"0")+":"+String(tot%60).padStart(2,"0"), d};
 }
 /* "16:56" or "16:56 +1d" when the offset pushes it past midnight */
-function chartTime(hm){
-  const o=chartOff(); if(!o)return String(hm||"");
+function chartTime(hm,date){
+  const o=chartOff(date); if(!o)return String(hm||"");
   const r=shiftHM(hm,o); if(!r.t)return String(hm||"");
   return r.t+(r.d>0?" +1d":r.d<0?" −1d":"");
 }
-const offWord=()=>{const o=chartOff(); if(!o)return "";
+const offWord=date=>{const o=chartOff(date); if(!o)return "";
   const a=Math.abs(o), h=Math.floor(a/60), m=a%60;
   return (o>0?"+":"−")+(h?h+"h":"")+(h&&m?" ":"")+(m?m+"m":"")};
 /* the date the chart would show, when the offset crosses midnight */
 function chartDay(t){
-  const o=chartOff(); if(!o)return t.date;
+  const o=chartOff(t.date); if(!o)return t.date;
   const r=shiftHM(t.time,o); if(!r.t||!r.d)return t.date;
   const x=new Date(t.date+"T00:00:00"); x.setDate(x.getDate()+r.d); return ymd(x);
 }
@@ -3490,8 +3519,8 @@ function copyChartLine(id){
   const t=DB.trades.find(x=>String(x.id)===String(id)); if(!t)return;
   const P=[];
   P.push(`${t.symbol} ${t.dir||""}`.trim());
-  const c1=chartTime(t.time), c2=chartTime(t.ctime||closeGuess(t));
-  P.push(longDay(chartDay(t))+"  "+c1+(c2?" → "+c2:"")+(chartOff()?"   (your chart's clock)":""));
+  const c1=chartTime(t.time,t.date), c2=chartTime(t.ctime||closeGuess(t),t.date);
+  P.push(longDay(chartDay(t))+"  "+c1+(c2?" → "+c2:"")+(chartOff(t.date)?"   (your chart's clock)":""));
   const pr=[];
   if(+t.entry>0)pr.push("entry "+px(t.entry,t.symbol));
   if(+t.sl>0)   pr.push("stop "+px(t.sl,t.symbol));
@@ -3502,7 +3531,7 @@ function copyChartLine(id){
   if(m)P.push(`${m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w} ${m.favourable?"in favour":"against"}`);
   P.push(`${n2(t.r)}R  ($${n2(t.pnl)})${t.session?"  ·  "+t.session:""}`);
   if(t.ticket)P.push("ticket "+t.ticket);
-  if(chartOff())P.push(`platform stamped it ${t.time}${t.ctime||closeGuess(t)?" → "+(t.ctime||closeGuess(t)):""} — offset ${offWord()}`);
+  if(chartOff(t.date))P.push(`platform stamped it ${t.time}${t.ctime||closeGuess(t)?" → "+(t.ctime||closeGuess(t)):""} — offset ${offWord(t.date)}`);
   copy(P.join("\n"),"Copied — paste it beside your chart");
 }
 function renderQueue(){
@@ -3539,11 +3568,11 @@ function renderQueue(){
       <div class="factgrp"><div class="gl">When</div>
         <div class="facts">
           <div><div class="l">Trading day</div><div class="v" style="font-size:12.5px">${longDay(chartDay(t))}</div></div>
-          <div><div class="l">Opened${chartOff()?" · chart":""}</div><div class="v">${esc(chartTime(t.time))||"—"}</div>${
-            chartOff()?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.time)} on your platform</div>`:""}</div>
-          <div><div class="l">Closed${chartOff()?" · chart":""}</div><div class="v">${
-            esc(chartTime(t.ctime||closeGuess(t)))||"—"}</div>${
-            chartOff()&&(t.ctime||closeGuess(t))?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.ctime||closeGuess(t))} on your platform</div>`:""}</div>
+          <div><div class="l">Opened${chartOff(t.date)?" · chart":""}</div><div class="v">${esc(chartTime(t.time,t.date))||"—"}</div>${
+            chartOff(t.date)?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.time)} on your platform</div>`:""}</div>
+          <div><div class="l">Closed${chartOff(t.date)?" · chart":""}</div><div class="v">${
+            esc(chartTime(t.ctime||closeGuess(t),t.date))||"—"}</div>${
+            chartOff(t.date)&&(t.ctime||closeGuess(t))?`<div class="l" style="margin-top:4px;opacity:.75">${esc(t.ctime||closeGuess(t))} on your platform</div>`:""}</div>
           <div><div class="l">Held</div><div class="v" style="font-size:13px">${t.dur!==""&&t.dur!==undefined?t.dur+"m":"—"}</div></div>
           <div><div class="l">Window</div><div class="v" style="font-size:11.5px">${esc(t.session)||"outside"}</div></div>
           ${SUBS().length?`<div><div class="l">Sub-session</div><div class="v" style="font-size:11.5px">${esc(subOf(t.time))||"—"}</div></div>`:""}
@@ -3860,6 +3889,11 @@ function renderEditors(){
   const nt=document.getElementById("n_net"); if(nt)nt.checked=CFG.risk.net!==false;
   const rb=document.getElementById("n_rband"); if(rb)rb.value=CFG.risk.band||35;
   const co=document.getElementById("n_choff"); if(co)co.value=((CFG.chart||{}).offset)||0;
+  {const C=chartCfg(), d=document.getElementById("n_chdst"), w=document.getElementById("n_chwin"), b=document.getElementById("n_chdstBox"), nt=document.getElementById("n_choffNote");
+   if(d)d.checked=!!C.dst; if(b)b.style.display=C.dst?"":"none";
+   if(w)w.value=(C.winter===undefined||C.winter===null||C.winter==="")?((+C.offset||0)+60):C.winter;
+   if(co&&C.dst)co.previousElementSibling&&(co.previousElementSibling.textContent="From March to November, your chart is ahead of your platform by (minutes)");
+   if(nt&&C.dst)nt.textContent=`Right now it is ${usDST()?"US summer time":"US winter time"}, so the gap in use today is ${offWord()||"0"}.`;}
   const ct=document.getElementById("clkTail"); if(ct)ct.textContent=chartOff()?offWord()+" against your platform":"not set";
   const bb=document.getElementById("n_beband"); if(bb)bb.value=CFG.risk.beBand||0;
   const bu=document.getElementById("n_beunit"); if(bu)bu.value=CFG.risk.beUnit||"usd";
@@ -3884,7 +3918,23 @@ function renderEditors(){
 function setGateGrade(v){CFG.gate.minGrade=v;save();refreshGate();toast("Updated")}
 function setGateFlag(k,v){CFG.gate[k]=!!v;save();refreshGate();toast("Updated")}
 function setPayFlag(k,v){CFG.payout=CFG.payout||{};CFG.payout[k]=!!v;save();render();toast("Updated")}
+function setChartDST(on){
+  CFG.chart=CFG.chart||{}; CFG.chart.dst=!!on;
+  if(on&&(CFG.chart.winter===undefined||CFG.chart.winter===null||CFG.chart.winter===""))CFG.chart.winter=(+CFG.chart.offset||0)+60;
+  save(); render(); toast(on?"The gap now follows US daylight saving":"One gap all year");
+}
+function setChartWinter(v){
+  let n=Math.round(+v||0); if(!isFinite(n))n=0; n=Math.max(-1439,Math.min(1439,n));
+  CFG.chart=CFG.chart||{}; CFG.chart.winter=n; save(); render();
+}
+/* one function for both fields: whichever season it is today is the one being set */
 function setChartOffset(v){
+  const C=(CFG.chart=CFG.chart||{});
+  if(C.dst&&!usDST()){ let n=Math.round(+v||0); if(!isFinite(n))n=0; C.winter=Math.max(-1439,Math.min(1439,n));
+    save(); render(); return toast(`Winter gap set to ${offWord()}`); }
+  return setChartOffsetSummer(v);
+}
+function setChartOffsetSummer(v){
   let n=Math.round(+v||0);
   if(!isFinite(n))n=0;
   n=Math.max(-1439,Math.min(1439,n));
@@ -3941,7 +3991,10 @@ function calibApply(){
   if(d> 720)d-=1440;
   if(d<-720)d+=1440;
   const snap=Math.round(d/15)*15, clean=Math.abs(d-snap)<=4&&d!==snap;
-  const set=v=>{const i=document.getElementById("n_choff"); if(i)i.value=v; setChartOffset(v);};
+  const set=v=>{
+    const C=(CFG.chart=CFG.chart||{});
+    if(C.dst){ if(usDST()){C.offset=v;C.winter=v+60} else {C.winter=v;C.offset=v-60} save(); render(); return; }
+    const i=document.getElementById("n_choff"); if(i)i.value=v; setChartOffset(v);};
   set(clean?snap:d);
   const w=n=>{const x=Math.abs(n),h=Math.floor(x/60),m=x%60;
     return (n>0?"+":n<0?"−":"")+(h?h+"h":"")+(h&&m?" ":"")+(m||!h?m+"m":"")};
@@ -4836,8 +4889,8 @@ function renderBoxDay(bx,k){
         const v=vmap[t.id];
         const scr=isScratch(t);
         return `<div class="tev ${t.pnl>0?"w":scr?"s":"l"}" style="animation-delay:${i*45}ms">
-          <div class="tm">${esc(chartTime(t.time))}<div class="mini">${t.dur?t.dur+"m":""}</div>${
-            chartOff()?`<div class="mini" style="opacity:.6">${esc(t.time)} plat.</div>`:""}</div>
+          <div class="tm">${esc(chartTime(t.time,t.date))}<div class="mini">${t.dur?t.dur+"m":""}</div>${
+            chartOff(t.date)?`<div class="mini" style="opacity:.6">${esc(t.time)} plat.</div>`:""}</div>
           <div class="mt">
             <div class="a">${esc(t.strat)||'<span class="thin">untagged</span>'}
               ${t.grade?`<span class="tag ${gradePol(t.grade)==="good"?"g":gradePol(t.grade)==="bad"?"r":"a"}" style="margin-left:6px">${esc(t.grade)}</span>`:""}</div>
@@ -4848,7 +4901,7 @@ function renderBoxDay(bx,k){
                 m.n>=100?Math.round(m.n):m.n.toFixed(1)} ${m.w}</span>${
                 t.sl?`<span style="opacity:.6"> · stop ${px(t.sl,t.symbol)}</span>`:""}${
                 t.tp?`<span style="opacity:.6"> · target ${px(t.tp,t.symbol)}</span>`:""}${
-                (t.ctime||closeGuess(t))?`<span style="opacity:.6"> · closed ${esc(chartTime(t.ctime||closeGuess(t)))}</span>`:""}</div>`;
+                (t.ctime||closeGuess(t))?`<span style="opacity:.6"> · closed ${esc(chartTime(t.ctime||closeGuess(t),t.date))}</span>`:""}</div>`;
               return t.entry?`<div class="b mono">entry ${px(t.entry,t.symbol)}</div>`:""})()}
             ${(()=>{const L=runLine(t,t.mfe,t.mae);
               return L?`<div class="b" style="white-space:normal;opacity:.9">${L}</div>`:""})()}
@@ -9035,7 +9088,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.12";
+const APP_VERSION="1.0.0-beta.13";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

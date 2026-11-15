@@ -9056,10 +9056,16 @@ const HAS_IO=typeof IntersectionObserver!=="undefined";
 function observe(){
   const els=document.querySelectorAll(".page.on .rv:not(.in)");
   if(!HAS_IO){els.forEach(e=>e.classList.add("in"));return}
+  /* Threshold 0, not a share of the card: a share can never be reached by a card taller
+     than the screen many times over — All Trades with three hundred rows stayed
+     invisible forever. Any pixel on screen is enough. */
   if(!IO)IO=new IntersectionObserver(es=>es.forEach(e=>{
     if(e.isIntersecting){e.target.classList.add("in");IO.unobserve(e.target)}
-  }),{threshold:.06,rootMargin:"0px 0px -40px 0px"});
+  }),{threshold:0,rootMargin:"0px 0px -40px 0px"});
   els.forEach(e=>IO.observe(e));
+  /* and whatever the browser does, nothing stays hidden for long */
+  clearTimeout(observe._t);
+  observe._t=setTimeout(()=>document.querySelectorAll(".page.on .rv:not(.in)").forEach(e=>e.classList.add("in")),1500);
 }
 document.getElementById("secnav").addEventListener("click",e=>{
   const a=e.target.closest("a[data-s]"); if(!a)return;
@@ -9088,7 +9094,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.13";
+const APP_VERSION="1.0.0-beta.14";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

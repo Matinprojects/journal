@@ -1429,9 +1429,26 @@ tr.hldet td{background:rgba(255,255,255,.015)}
     <p class="hint">One read of everything you have logged: where your money actually comes from, where it leaks out, and what to change first. Every line is measured against your own trades — nothing here is generic advice, and nothing is shown until there is enough data to mean it.</p>
     <div id="report"></div>
     <div class="row" style="margin-top:18px">
-      <button class="btn sec sm" onclick="copyBrief()">Copy a summary for an AI</button>
-      <span class="mini">Anonymous — numbers only, no broker, no account, no dates. Paste it into any AI for a second opinion.</span>
+      <button class="btn sec sm" onclick="copyBrief()">Copy a short summary for an AI</button>
+      <span class="mini">Numbers only. For a full analysis, use <b>Analyse With AI</b> below.</span>
     </div>
+  </div>
+  <div class="card rv" id="s-ai">
+    <h2><span class="dot"></span>Analyse With AI<span class="tail">complete export</span></h2>
+    <p class="hint">Everything in your journal, written so another analyst — Claude, ChatGPT, or a coach — can read it properly: what to look for, what every column means, which clock the times are in, your setup, your boxes and their lessons, your highlights and their record, and every trade with every field.</p>
+    <div class="grid g2">
+      <div><label>What to include</label><select id="ai_scope" onchange="renderAIPack()"></select>
+        <div class="row" id="ai_range" style="gap:8px;margin-top:8px;display:none">
+          <input type="date" id="ai_from" onchange="renderAIPack()"><input type="date" id="ai_to" onchange="renderAIPack()"></div></div>
+      <div><label>The AI should answer in</label><select id="ai_lang" onchange="renderAIPack()"><option value="fa">فارسی</option><option value="en">English</option></select>
+        <label class="row" style="gap:8px;align-items:center;margin:10px 0 0;cursor:pointer"><input type="checkbox" id="ai_notes" checked onchange="renderAIPack()">
+          <span>Include my written notes and end-of-day logs</span></label></div>
+    </div>
+    <div class="row" style="margin-top:14px;gap:8px">
+      <button class="btn" onclick="aiDownload()">Download the file</button>
+      <button class="btn sec" onclick="aiCopy()">Copy as text</button>
+    </div>
+    <div id="aiOut"></div>
   </div>
 
   <div class="card rv" style="--d:60ms">
@@ -1767,6 +1784,7 @@ tr.hldet td{background:rgba(255,255,255,.015)}
     <h2><span class="dot"></span>All Trades<span class="tail" id="tradeCount"></span></h2>
     <div class="row" style="margin-bottom:16px">
       <button class="btn sec sm" onclick="exportCSV()">Export CSV</button>
+      <button class="btn sm" onclick="go(4);setTimeout(()=>{const e=document.getElementById('s-ai');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})},250)">Export for AI analysis</button>
       <button class="btn danger sm" onclick="wipe()">Erase all trades</button>
       <button class="btn danger sm" onclick="startFresh()">Start fresh</button>
     </div>
@@ -3074,6 +3092,8 @@ const HELP={
  fa:["چقدر به قانون‌های خودت پایبند بودی، به صورت یک نمره از ۱۰۰.","از پایبندی، تریدهای بعد از سقف استاپ و تریدهای خارج از پلن ساخته می‌شود. دربارهٔ رفتار است، نه سود.","۸۰ به بالا. دوره‌ای پرسود با نمرهٔ پایین، شانس است نه مهارت."]},
 "Your Highlights":{en:["Your own observations — patterns, conditions, traps — and how often each one actually held.","Write one while tagging a trade, then on later trades mark ✓ held or ✗ didn't. The range shows what the real hit rate could be; once it sits above 50% the note is proven and joins your playbook.","A short playbook of proven notes, and the courage to delete the rejected ones."],
  fa:["مشاهده‌های خودت — الگوها، شرایط، تله‌ها — و اینکه هر کدام چند بار واقعاً درست درآمد.","موقع تگ زدن یک ترید بنویسش، بعد روی تریدهای بعدی بزن ✓ درست بود یا ✗ نبود. محدوده نشان می‌دهد درصد واقعی درستی‌اش چقدر می‌تواند باشد؛ وقتی کل محدوده بالای ۵۰٪ برود، نکته ثابت شده و وارد پلی‌بوکت می‌شود.","یک پلی‌بوک کوتاه از نکته‌های ثابت‌شده، و جرئت پاک کردن نکته‌های ردشده."]},
+"Analyse With AI":{en:["One file with your whole journal, prepared for an AI to analyse.","Pick all trades, one box or a date range, choose the answer language, then Download. In Claude or ChatGPT, attach the file and send — the instructions are already inside it.","An analysis that cites trade counts and gives at most three testable changes."],
+ fa:["یک فایل با کل ژورنالت، آماده برای تحلیل با هوش مصنوعی.","همهٔ تریدها، یک باکس یا یک بازهٔ تاریخ را انتخاب کن، زبان جواب را بزن و Download. در Claude یا ChatGPT فایل را ضمیمه کن و بفرست — دستورها داخل خود فایل است.","تحلیلی که برای هر حرفش تعداد ترید می‌آورد و حداکثر سه تغییر قابل‌تست پیشنهاد می‌دهد."]},
 "Trading Report":{en:["A written review of your whole record: what works, where money leaks, and what to do next.","Read the leaks from the top — the first one costs you the most. Each one says how much and what to change.","Few leaks, small ones, and a clear 'what is working' list."],
  fa:["یک گزارش نوشتاری از کل سابقه‌ات: چه چیزی جواب می‌دهد، پول از کجا نشت می‌کند، و قدم بعدی چیست.","نشت‌ها را از بالا بخوان — اولی بیشترین هزینه را دارد. هر کدام می‌گوید چقدر و چه چیزی را عوض کنی.","نشت کم و کوچک، و یک فهرست روشن از چیزهایی که جواب می‌دهند."]},
 "Automated Analysis":{en:["Short findings the journal noticed in your trades.","Each line is one pattern with the numbers behind it.","Act on the ones with enough trades behind them; note the rest."],
@@ -5265,6 +5285,71 @@ function renderForecast(bx){
       ${F.n<60?"With this few trades the spread is wide on purpose — it narrows as the box fills.":""}</div>
   </div>`;
 }
+/* ---------- what changed between two boxes ----------
+   The headline numbers say whether a box was better. This says why: every habit
+   that costs money, measured the same way in both boxes and scaled to 100 trades,
+   so a 60-trade box and a 200-trade box can be compared honestly. */
+function boxDiff(prevTr,curTr){
+  const bad=[["offplan","Trades taken off-plan"],["after","The trade right after a stop"],["over","Losses past your stop"],["exits","Winners closed early"]];
+  badStates().forEach(s=>bad.push(["state:"+s,`Trading while ${s}`]));
+  names("grades").filter(g=>gradePol(g)!=="good").forEach(g=>bad.push(["grade:"+g,`Grade ${g} setups`]));
+  {const nums=[...new Set(prevTr.concat(curTr).map(t=>+t.tradeNo).filter(x=>x>=3))].sort((a,b)=>a-b);
+   if(nums.length)bad.push(["late:"+nums[0],`Trade #${nums[0]} onward in a day`]);}
+  const per100=(m)=>m.N?m.totR/m.N*100:0;
+  const habits=bad.map(([k,label])=>{
+    const a=measure(k,prevTr), b=measure(k,curTr);
+    if(!a.n&&!b.n)return null;
+    const ca=per100(a), cb=per100(b);
+    const isEx=k==="exits";
+    const share=m=>isEx?m.rate:m.rate;          // exits: R left per winner; others: share of trades
+    let v;
+    if(!a.n&&b.n)v=b.totR<0?"new":"same";
+    else if(a.n&&!b.n)v="gone";
+    else{const d=isEx?(a.rate-b.rate):(cb-ca);   // positive = better
+      v=Math.abs(d)<(isEx?0.15:2)?"same":d>0?"better":"worse";}
+    return {k,label,a,b,ca,cb,v,isEx,share};
+  }).filter(Boolean);
+  const M=MIN(), minN=Math.max(4,Math.round((M.slice||8)*0.5));
+  const where=[];
+  const dims=[["strat","Strategy",t=>t.strat],["win","Window",t=>t.session]];
+  if(SUBS().length)dims.push(["sub","Sub-session",t=>{const x=subOf(t.time);return x&&x!=="outside"?x:""}]);
+  dims.forEach(([k,lab,f])=>{
+    const ga=group(prevTr,f), gb=group(curTr,f);
+    [...new Set(Object.keys(ga).concat(Object.keys(gb)))].forEach(name=>{
+      const a=stats(ga[name]||[]), b=stats(gb[name]||[]);
+      if(Math.max(a.n,b.n)<minN)return;
+      where.push({dim:lab,name,a,b,d:(b.n?b.exp:0)-(a.n?a.exp:0)});
+    });
+  });
+  where.sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
+  const worse=habits.filter(h=>h.v==="worse"||h.v==="new").sort((x,y)=>(x.cb-x.ca)-(y.cb-y.ca));
+  const better=habits.filter(h=>h.v==="better"||h.v==="gone").sort((x,y)=>(y.cb-y.ca)-(x.cb-x.ca));
+  return {habits,where,worse,better,minN};
+}
+function boxDiffHTML(P,prevTr,curTr){
+  if(prevTr.length<5||curTr.length<5)return "";
+  const X=boxDiff(prevTr,curTr);
+  const tag={better:["g","better"],gone:["g","gone"],worse:["r","worse"],new:["r","new"],same:["thin","about the same"]};
+  const fmt=(h,m,c)=>!m.n?"—":h.isEx?`${n2(m.rate)}R left per winner`:`${m.n} trades (${pct(m.rate)}) · ${n2(c)}R per 100`;
+  const fix=X.worse[0], keep=X.better[0];
+  return `<div class="bxsec"><div class="st">What changed since ${esc(P.name||"the previous box")}<span>each habit scaled to 100 trades</span></div>
+    ${fix||keep?`<div class="subverdict" style="margin-top:0">
+      ${fix?`<div><span class="l">Fix first</span><b>${esc(fix.label)}</b> — ${fix.isEx?`${n2(fix.a.rate)}R → ${n2(fix.b.rate)}R left on each winner`:`${n2(fix.ca)}R → ${n2(fix.cb)}R per 100 trades`}</div>`:""}
+      ${keep?`<div><span class="l">Keep</span><b>${esc(keep.label)}</b> — ${keep.isEx?`${n2(keep.a.rate)}R → ${n2(keep.b.rate)}R left on each winner`:`${n2(keep.ca)}R → ${n2(keep.cb)}R per 100 trades`}</div>`:""}
+    </div>`:""}
+    ${X.habits.length?`<div class="scroll"><table class="cmp"><thead><tr><th>Habit</th><th>${esc(P.name||"Before")}</th><th>This box</th><th></th></tr></thead><tbody>
+      ${X.habits.map(h=>`<tr><td>${esc(h.label)}</td><td class="mono">${fmt(h,h.a,h.ca)}</td><td class="mono">${fmt(h,h.b,h.cb)}</td>
+        <td><span class="vd ${tag[h.v][0]==="g"?"good":tag[h.v][0]==="r"?"bad":"thin"}">${tag[h.v][1]}</span></td></tr>`).join("")}
+    </tbody></table></div>`:""}
+    ${X.where.length?`<div class="st2" style="margin-top:16px">Where you made and lost money — before and now</div>
+      <div class="scroll"><table class="cmp"><thead><tr><th></th><th>${esc(P.name||"Before")}</th><th>This box</th><th>Change</th></tr></thead><tbody>
+      ${X.where.slice(0,12).map(w=>`<tr><td>${esc(w.dim)}: <b>${esc(w.name)}</b></td>
+        <td class="mono">${w.a.n?`${n2(w.a.exp)}R · ${w.a.n}`:"—"}</td><td class="mono">${w.b.n?`${n2(w.b.exp)}R · ${w.b.n}`:"—"}</td>
+        <td class="mono ${cls(w.d)}">${w.a.n&&w.b.n?(w.d>0?"▲ ":"▼ ")+n2(Math.abs(w.d))+"R":w.b.n?"new":"stopped"}</td></tr>`).join("")}
+      </tbody></table></div>
+      <div class="mini" style="margin-top:6px">R is the average per trade; the second number is how many trades. Rows with fewer than ${X.minN} trades in both boxes are left out.</div>`:""}
+  </div>`;
+}
 let BXR={id:"",tab:"all"};
 function openBoxReport(id){
   const bx=boxes().find(b=>b.id===id); if(!bx)return;
@@ -5354,6 +5439,7 @@ function renderBoxReport(){
       <h1>${esc(bx.name||"Box")} <span class="verdict ${VD.v}">${esc(VD.label)}</span></h1>
       <div class="mini">${esc(bx.start||"")}${bx.closed?" → "+esc(bx.closed):" → now"} · ${tr.length}${bx.target?"/"+bx.target:""} trades · ${days} trading day${days===1?"":"s"}${(bx.symbols||[]).length?" · "+bx.symbols.map(esc).join(", "):""}</div></div>
     <div class="row" style="gap:8px">
+      ${prevBox(bx)?`<button class="btn sec sm" onclick="closeBoxReport();go(4);setTimeout(()=>{const s=document.getElementById('ai_scope');if(s){s.value='cmp:${jsq(bx.id)}';renderAIPack();document.getElementById('s-ai').scrollIntoView({behavior:'smooth'})}},250)">Compare with AI</button>`:""}
       <button class="btn sec sm" onclick="copyBoxReport()">Copy as text</button>
       <button class="btn sec sm" onclick="window.print()">Print / PDF</button>
       <button class="btn sm" onclick="closeBoxReport()">Close</button>
@@ -5397,6 +5483,8 @@ function renderBoxReport(){
     </tbody></table></div>
     ${(()=>{const t=permTest(PT.map(x=>x.r),R,2000);return t?`<div class="mini" style="margin-top:8px">Is the change in expectancy real? <span class="vd ${t.p<0.05?(S.exp>PS.exp?"good":"bad"):t.p<0.15?"warn":"thin"}">${pWord(t.p)}</span> (p = ${t.p.toFixed(3)})</div>`:""})()}
   </div>`:""}
+
+  ${P?boxDiffHTML(P,PT,tr):""}
 
   ${(bx.carried||[]).length?`<div class="bxsec"><div class="st">Did last box's lessons stick?<span>carried in from ${esc((bx.carried[0]||{}).fromName||"the previous box")}</span></div>
     ${bx.carried.map((c,i)=>{const J=judgeLesson(c,tr);
@@ -6086,7 +6174,7 @@ function render(){
   document.getElementById("tables").innerHTML=T.map(([n,k],i)=>tableFor(n,tr,k,i)).join("");
   requestAnimationFrame(()=>document.querySelectorAll("#tables .bar>i").forEach(b=>b.style.width=b.dataset.w+"%"));
   buildForm();renderBoxes();renderBoxForm();insights(tr);renderData();renderChecklist();renderQueue();renderBulk();renderEditors();renderCF();renderBulkList();renderChkEditor();
-  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderSubs();renderHighlights();renderReport();renderConfidence();renderRisk();renderDecay();
+  renderWhatIf();renderDiscipline(tr);renderMoney();renderSync();refreshGate();renderCutoff();renderWindowLab();renderSubs();renderHighlights();renderReport();renderAIPack();renderConfidence();renderRisk();renderDecay();
   observe();spy();
   try{addHelp()}catch(e){}
 }
@@ -8311,6 +8399,246 @@ const cloudAgo=()=>{
   return m<1?"just now":m<60?m+" min ago":m<1440?Math.round(m/60)+"h ago":Math.round(m/1440)+"d ago";
 };
 
+/* ============================================================
+   AI ANALYSIS PACK — the whole journal, written for another analyst
+   A model can only find what it is given, and can only weigh it correctly if it
+   is told what every column means, which clock the times are in, and how sure a
+   small sample is. So the pack carries: instructions, a glossary, his own setup,
+   the journal's own numbers, the boxes and their lessons, his highlights with
+   their record, and every trade, one row each.
+   ============================================================ */
+const strip=s=>String(s==null?"":s).replace(/<[^>]+>/g,"").replace(/&nbsp;/g," ").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').trim();
+const mdc=v=>String(v==null?"":v).replace(/\|/g,"/").replace(/\r?\n/g," ").trim();
+function aiScope(){
+  const g=id=>(document.getElementById(id)||{}).value||"";
+  const kind=g("ai_scope")||"all";
+  let tr=DB.trades.slice(), label="all trades";
+  if(kind.startsWith("box:")){const b=boxes().find(x=>x.id===kind.slice(4)); tr=b?boxTrades(b.id):[]; label=b?`box "${b.name}"`:"box";}
+  let pair=null;
+  if(kind.startsWith("cmp:")){const b=boxes().find(x=>x.id===kind.slice(4)), p=b?prevBox(b):null;
+    if(b&&p){pair={cur:b,prev:p}; tr=boxTrades(p.id).concat(boxTrades(b.id)); label=`box "${b.name}" compared with "${p.name}"`}}
+  if(kind==="range"){const a=g("ai_from"),z=g("ai_to"); tr=tr.filter(t=>(!a||t.date>=a)&&(!z||t.date<=z)); label=`${a||"start"} → ${z||"today"}`;}
+  tr.sort((a,b)=>(a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  return {tr,label,kind,pair,lang:g("ai_lang")||"fa",notes:(document.getElementById("ai_notes")||{checked:true}).checked};
+}
+function aiPack(o){
+  o=o||aiScope();
+  const tr=o.tr, fa=o.lang==="fa", L=[], S=stats(tr), M=MIN();
+  const P=s=>L.push(s), H=s=>{P("");P(s);P("")};
+  const tbl=(head,rows)=>{P("| "+head.join(" | ")+" |");P("|"+head.map(()=>"---").join("|")+"|");rows.forEach(r=>P("| "+r.map(mdc).join(" | ")+" |"))};
+  const bd=(name,key,order)=>{
+    const g=group(tr,key); let rows=Object.entries(g).map(([k,v])=>[k,stats(v)]);
+    if(!rows.length)return;
+    rows.sort(order?(a,b)=>order(a[0],b[0]):(a,b)=>b[1].totR-a[1].totR);
+    H("### By "+name);
+    tbl(["group","trades","win %","avg R","total R","profit factor","net $"],
+      rows.map(([k,s])=>[k,s.n,(s.wr*100).toFixed(0),n2(s.exp),n2(s.totR),s.pf>=99?"inf":n2(s.pf),n2(s.pnl)]));
+  };
+  const cut=Math.max(10,Math.round((M.slice||8)*1.5));
+
+  /* ---------- 1 · what the AI is asked to do ---------- */
+  P(`# Trading journal — analysis pack`);
+  P(`Exported ${todayStr()} from Matin Projects Trading Journal ${APP_VERSION}. Scope: ${o.label}. ${tr.length} trades${tr.length?`, ${tr[0].date} → ${tr[tr.length-1].date}`:""}.`);
+  H("## 1. Instructions for the analyst");
+  if(fa){
+    P("لطفاً **به فارسی** جواب بده. تو یک مربی عملکرد معاملاتی و تحلیلگر کمّی هستی. این فایل کل ژورنال من است. هدف: پیدا کردن چیزهایی که واقعاً معاملاتم را بهتر می‌کند.");
+    P("");
+    P("به این ترتیب کار کن:");
+    P("1. **بررسی سلامت داده:** هر چیز عجیب یا ناسازگار در داده‌ها (R غیرعادی، ریسک صفر، تریدهای تکراری، ستون‌های خالی) را اول بگو.");
+    P("2. **لبهٔ من کجاست:** سود من دقیقاً از کدام ترکیب‌ها می‌آید — استراتژی × ساب‌سشن × گرید × حالت ذهنی. فقط یک بُعد را نگاه نکن.");
+    P("3. **نشت‌ها:** کجا پول از دست می‌دهم، با هزینه به R و تعداد ترید. بگو هر نتیجه چقدر قابل اعتماد است.");
+    P("4. **خروج‌ها:** با MFE و MAE بررسی کن آیا زود می‌بندم، دیر می‌بندم، یا استاپم جای درستی است.");
+    P("5. **نظم:** تأثیر پایبندی به پلن، ترید بعد از استاپ، و تعداد ترید در روز.");
+    P("6. **هایلایت‌های من:** هر کدام را جداگانه با داده بسنج. کدام واقعاً ثابت شده و کدام فقط حس است.");
+    P("7. **باکس به باکس:** آیا پیشرفت کرده‌ام؟ درس‌هایی که به باکس بعد بردم واقعاً اجرا شدند؟");
+    P("8. **برای باکس بعدی:** حداکثر ۳ تغییر، هر کدام به شکل یک **قانون قابل‌تست** با عدد هدف (مثلاً: «در ساب‌سشن ۱۳:۰۰–۱۵:۳۰ ترید نکن؛ هدف: expectancy باکس بعدی بالای ۰.۲R»).");
+    P("");
+    P(`قواعد: هر ادعا را با تعداد ترید و عدد بگو. گروهی با کمتر از ${cut} ترید را «نمونهٔ کوچک» علامت بزن و رویش نتیجهٔ قطعی نگیر. نصیحت کلی نده. اگر برای جواب دادن داده‌ای کم است، بپرس.`);
+  }else{
+    P("Answer in English. Act as a trading performance coach and a quantitative analyst. This file is my whole journal. The goal is to find what will actually improve my trading.");
+    P("");
+    P("Work in this order:");
+    P("1. **Data check:** point out anything odd or inconsistent first (extreme R, zero risk, duplicates, empty columns).");
+    P("2. **Where my edge is:** which combinations my profit actually comes from — strategy × sub-session × grade × mental state. Do not stop at one dimension.");
+    P("3. **Leaks:** where money is lost, with the cost in R and the trade count, and how reliable each finding is.");
+    P("4. **Exits:** use MFE and MAE to judge whether I close too early, too late, or place my stop badly.");
+    P("5. **Discipline:** the effect of plan adherence, trading after a stop, and trades per day.");
+    P("6. **My highlights:** test each one separately against the data. Which are proven and which are only a feeling.");
+    P("7. **Box to box:** am I improving? Were the lessons I carried forward actually applied?");
+    P("8. **For the next box:** at most 3 changes, each written as a **testable rule** with a target number.");
+    P("");
+    P(`Rules: back every claim with a trade count and a number. Mark any group with fewer than ${cut} trades as a small sample and draw no firm conclusion from it. No generic advice. If data you need is missing, ask.`);
+  }
+
+  if(o.pair){
+    const a=o.pair.prev.name, b=o.pair.cur.name;
+    P("");
+    if(fa){P(`**این فایل دو باکس را کنار هم دارد: «${a}» (قبلی) و «${b}» (جدید).** ستون \`box\` در جدول تریدها می‌گوید هر ترید مال کدام است. تمرکز تحلیل روی **مقایسه** باشد:`);
+      P("- در باکس جدید کدام اشتباه‌ها کمتر شد و کدام بیشتر؟ (به ازای هر ۱۰۰ ترید مقایسه کن، چون اندازهٔ باکس‌ها فرق دارد)");
+      P("- درس‌هایی که از باکس قبلی آوردم واقعاً اجرا شد؟ با عدد نشان بده.");
+      P("- اشتباه **جدیدی** پیدا شده که در باکس قبلی نبود؟");
+      P("- سود از کدام استراتژی/ساب‌سشن جابه‌جا شد؟");
+      P("- آیا فرق expectancy دو باکس واقعی است یا ممکن است شانس باشد؟");
+      P("- در آخر: مهم‌ترین چیزی که باید در باکس بعدی درست کنم، و چیزی که باید **دست نزنم** چون جواب داده.");}
+    else{P(`**This file holds two boxes side by side: "${a}" (earlier) and "${b}" (newer).** The \`box\` column says which each trade belongs to. Focus the analysis on the **comparison**:`);
+      P("- Which mistakes became less frequent in the newer box, and which more? (compare per 100 trades — the boxes differ in size)");
+      P("- Were the lessons carried over from the earlier box actually applied? Show it with numbers.");
+      P("- Did any **new** mistake appear?");
+      P("- Did profit shift between strategies or sub-sessions?");
+      P("- Is the difference in expectancy real, or could it be luck?");
+      P("- Finally: the one thing to fix in the next box, and the one thing to leave alone because it worked.");}
+    const X=boxDiff(boxTrades(o.pair.prev.id),boxTrades(o.pair.cur.id));
+    if(X.habits.length){P("");P(`Habits measured by the journal, per 100 trades (${a} → ${b}):`);
+      X.habits.forEach(h=>P(`- ${h.label}: ${h.isEx?`${n2(h.a.rate)}R → ${n2(h.b.rate)}R left per winner`:`${h.a.n} trades, ${n2(h.ca)}R → ${h.b.n} trades, ${n2(h.cb)}R`} (${h.v})`));}
+  }
+
+  /* ---------- 2 · glossary ---------- */
+  H("## 2. How to read the data");
+  P("- **R** = profit or loss divided by the money risked on that trade. +1R = made what was risked; −1R = a full stop. All averages are per trade.");
+  P(`- **risk_usd** = dollars at stake. ${CFG.risk&&CFG.risk.fixed?`The trader risks a fixed $${CFG.risk.def} per trade (±${CFG.risk.band||35}% accepted); where the statement showed a moved/trailed stop, risk was reset to the planned figure and \`risk_repaired\` = yes.`:"Taken from entry/stop/lot, or the statement."}`);
+  P(`- **pnl_usd** = ${costsOn()?"net result after commission and swap (gross_usd + commission + swap)":"gross result; commission and swap are listed but not deducted"}.`);
+  P(`- **time_platform** = the broker server's clock, as on the statement. **time_chart** = the same moment on the trader's chart / local clock (Tehran, UTC+3:30). ${chartCfg().dst?`The gap is ${n2((+chartCfg().offset||0)/60)}h during US summer time and ${n2((+chartCfg().winter||((+chartCfg().offset||0)+60))/60)}h otherwise, because the broker follows New York daylight saving.`:`The gap is ${offWord()||"0"}.`}`);
+  P("- **session** = the trader's own time windows (graded A/B/C by him). **sub_session** = his finer slices of the day, in platform time.");
+  P("- **mfe_r / mae_r** = how far price went in his favour / against him while the trade was open, in R (only where he recorded it).");
+  P("- **adherence**: how closely the trade followed his plan. **grade**: his own rating of the setup. **state**: his mental state when entering.");
+  P("- **trade_no** = the trade's number within that day. **box** = the experiment (a fixed run of trades under fixed rules) the trade belongs to.");
+  P("- **highlights** = his own observations attached to the trade; `+` = it held on this trade, `−` = it did not, `?` = not judged.");
+
+  /* ---------- 3 · his setup ---------- */
+  H("## 3. The trader's setup");
+  const nm=k=>(CFG[k]||[]).map(x=>x.pol?`${x.name} (${x.pol})`:x.name).join(", ");
+  P(`- Strategies: ${nm("strategies")}`);
+  P(`- Setup grades: ${nm("grades")}`);
+  P(`- Mental states: ${nm("states")}`);
+  P(`- Adherence: ${(CFG.adherence||[]).map(x=>x.name).join(", ")}`);
+  P(`- Exit reasons: ${nm("exits")}`);
+  if((CFG.sessions||[]).length){P("- Session windows (platform time):");(CFG.sessions||[]).forEach(s=>P(`  - ${s.name}: ${s.from}–${s.to}${s.grade?` · grade ${s.grade}`:""}`))}
+  if(SUBS().length)P(`- Sub-sessions (${(CFG.subs||{}).clock==="chart"?"chart":"platform"} time): ${SUBS().map(subName).join(", ")}`);
+  const R=CFG.risk||{}, G=CFG.gate||{};
+  P(`- Risk: default $${R.def||"—"} per trade${R.fixed?" (fixed)":""}; daily loss limit ${R.dayR||"—"}R; weekly ${R.weekR||"—"}R; minimum planned R:R ${R.minRR||"—"}; a loss smaller than ${R.beBand||0}${R.beUnit==="r"?"R":"$"} counts as a scratch, not a stop.`);
+  P(`- Trade Gate: stop after ${G.maxStops||"—"} losses a day; max ${G.maxTrades||"—"} trades a day.`);
+  cfFields().forEach(f=>P(`- Custom field "${f.name}": ${f.opts.map(x=>x.name).join(", ")}`));
+
+  /* ---------- 4 · the numbers ---------- */
+  H("## 4. Summary of the trades in this pack");
+  if(!tr.length){P("No trades in this scope.");}
+  else{
+    const ci=tr.length>=10?bootCI(tr.map(t=>+t.r).filter(isFinite)):null, q=sqn(tr);
+    tbl(["measure","value"],[
+      ["trades",S.n],["win rate",pct(S.wr)],["net $",n2(S.pnl)],["total R",n2(S.totR)],
+      ["expectancy (avg R per trade)",n2(S.exp)+(ci?` (95% range ${n2(ci.lo)} to ${n2(ci.hi)})`:"")],
+      ["profit factor",S.pf>=99?"inf":n2(S.pf)],["avg win / avg loss",`${n2(S.aw)}R / ${n2(S.al)}R`],["payoff",n2(S.payoff)],
+      ["max drawdown",n2(S.dd)+"R"],["longest losing streak",S.maxLS],["SQN",q===null?"—":n2(q)],
+      ["trading days",new Set(tr.map(t=>t.date)).size],["trades tagged",tr.filter(isTagged).length]]);
+    bd("strategy",t=>t.strat);
+    bd("session window",t=>t.session);
+    if(SUBS().length)bd("sub-session",t=>{const x=subOf(t.time);return x}, (a,b)=>subStart(a)-subStart(b));
+    bd("setup grade",t=>t.grade,(a,b)=>String(a).localeCompare(String(b)));
+    bd("mental state",t=>t.emo);
+    bd("plan adherence",t=>t.adh);
+    bd("rule broken",t=>t.broke);
+    bd("trade number of the day",t=>t.tradeNo?String(t.tradeNo):"",(a,b)=>+a-+b);
+    bd("weekday",t=>t.date?DOWS[new Date(t.date+"T00:00:00").getDay()]:"",(a,b)=>DOWS.indexOf(a)-DOWS.indexOf(b));
+    bd("hour (platform time)",t=>{const m=String(t.time||"").match(/^(\d{1,2}):/);return m?m[1].padStart(2,"0")+":00":""},(a,b)=>a.localeCompare(b));
+    bd("direction",t=>t.dir);
+    bd("exit reason",t=>t.exitreason);
+    cfFields().forEach(f=>bd(f.name,t=>(t.cf&&t.cf[f.id])||""));
+
+    /* ---------- 5 · what the journal itself already found ---------- */
+    const Dg=diagnose(tr);
+    if(!Dg.thin){
+      H("## 5. What the journal's own analysis already flags");
+      P("Treat these as leads to verify, not conclusions.");
+      Dg.leaks.forEach(l=>P(`- LEAK — ${strip(l.title)}: ${l.n} trades, ${n2(l.costR)}R. ${strip(l.why)} Suggested: ${strip(l.fix)}`));
+      Dg.notes.forEach(x=>P(`- NOTE — ${strip(x.t)}: ${strip(x.b)}`));
+      Dg.strengths.forEach(x=>P(`- STRENGTH — ${strip(x.t)}: ${strip(x.b)}`));
+    }
+  }
+
+  /* ---------- 6 · boxes ---------- */
+  const bxs=boxes().filter(b=>b&&b.start).sort((a,b)=>a.start.localeCompare(b.start)).filter(b=>o.kind==="all"||o.kind==="range"||o.kind==="box:"+b.id);
+  if(bxs.length){
+    H("## 6. Boxes (experiments) and their lessons");
+    bxs.forEach(b=>{
+      const bt=boxTrades(b.id), s=stats(bt), V=boxVerdict(b);
+      P(`### ${b.name} — ${b.start}${b.closed?" → "+b.closed:" → open"} · ${bt.length}${b.target?"/"+b.target:""} trades · ${V.label}`);
+      const rules=[];
+      if((b.symbols||[]).length)rules.push("symbols "+b.symbols.join(", "));
+      if((b.strategies||[]).length)rules.push("strategies "+b.strategies.join(", "));
+      if(b.cap)rules.push(`max ${b.cap} trades/day`); if(b.maxLoss)rules.push(`stop after ${b.maxLoss} losses`);
+      if(b.r0)rules.push(`risk $${b.r0}${b.r1?` → $${b.r1} after $${b.r1at} profit`:""}`);
+      if(b.payPct)rules.push(`withdraw ${b.payPct}% of winning weeks`);
+      (b.noWin||[]).forEach(x=>rules.push("no "+x+" window")); (b.noSub||[]).forEach(x=>rules.push("no "+x));
+      (b.noStrat||[]).forEach(x=>rules.push("no "+x)); (b.noState||[]).forEach(x=>rules.push("not while "+x));
+      if(b.minGrade)rules.push("grade "+b.minGrade+"+ only"); if(b.pause)rules.push(`${b.pause} min pause after a stop`);
+      if(rules.length)P(`- Rules: ${rules.join("; ")}`);
+      if(bt.length)P(`- Result: ${n2(s.exp)}R per trade, ${n2(s.totR)}R total, $${n2(s.pnl)}, win ${pct(s.wr)}, PF ${s.pf>=99?"inf":n2(s.pf)}, max DD ${n2(s.dd)}R, rule breaks ${boxViolations(b).length}`);
+      (b.carried||[]).forEach(c=>{const J=judgeLesson(c,bt);P(`- Lesson carried in: "${strip(c.title)}" → ${J.w}`)});
+      (b.carry||[]).forEach(c=>P(`- Lesson chosen for the next box: "${strip(c.title)}"${c.rule?" (made a rule)":""}`));
+      if(b.review)P(`- Trader's own review: ${mdc(b.review)}`);
+      P("");
+    });
+  }
+
+  /* ---------- 7 · highlights ---------- */
+  if(HL().length){
+    H("## 7. The trader's highlights (his own hypotheses)");
+    P("Each is something he noticed. `held` counts only the trades where he judged it. Status is computed from a 95% interval on the hit rate: proven = whole interval above 50%.");
+    tbl(["highlight","type","seen on","held / judged","status","avg R on those trades","avg R on the rest"],
+      HL().map(h=>{const E=hlEvidence(h.id,tr);return [h.text,h.kind==="warn"?"trap to avoid":"edge to look for",E.seen,`${E.yes}/${E.n}`,E.status,E.seen?n2(E.S.exp):"—",n2(E.R.exp)]}));
+  }
+
+  /* ---------- 8 · end-of-day notes ---------- */
+  const ses=(DB.sessions||[]).filter(x=>x&&x.date&&(!tr.length||(x.date>=tr[0].date&&x.date<=tr[tr.length-1].date)));
+  if(o.notes&&ses.length){
+    H("## 8. End-of-day notes");
+    tbl(["date","sleep","physical","mental","planned cap","biggest mistake","one fix"],
+      ses.map(x=>[x.date,x.sleep,x.phys,x.ment,x.cap,x.mistake,x.fix]));
+  }
+
+  /* ---------- 9 · every trade ---------- */
+  H("## 9. Every trade");
+  P("One row per trade, oldest first. Empty = not recorded.");
+  const cols=["date","weekday","time_platform","time_chart","close_platform","held_min","session","sub_session","box","symbol","side","lot",
+    "entry","stop","target","exit","risk_usd","risk_repaired","gross_usd","commission","swap","pnl_usd","r","mfe_r","mae_r",
+    "strategy","grade","state","adherence","rule_broken","exit_reason","trade_no",...cfFields().map(f=>f.name),"highlights",...(o.notes?["note","platform_comment"]:[]),"ticket"];
+  const csv=v=>{const s=String(v==null?"":v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""').replace(/\r?\n/g," ")+'"':s};
+  const bn={};boxes().forEach(b=>bn[b.id]=b.name);
+  P("```csv");
+  P(cols.map(csv).join(","));
+  tr.forEach(t=>{
+    const hl=(t.hl||[]).map(x=>{const h=hlGet(x.id);return h?(x.ok===1?"+":x.ok===-1?"−":"?")+h.text:""}).filter(Boolean).join(" ; ");
+    const row=[t.date,t.date?DOWS[new Date(t.date+"T00:00:00").getDay()]:"",t.time,chartTime(t.time,t.date),t.ctime||closeGuess(t),t.dur,t.session,subOf(t.time),bn[t.box]||"",
+      t.symbol,t.dir,t.lot,t.entry,t.sl,t.tp,t.exitp,n2(+t.risk||0),t.moved?"yes":"",t.gross!==undefined?t.gross:"",t.comm!==undefined?t.comm:"",t.swap!==undefined?t.swap:"",
+      n2(+t.pnl||0),n2(+t.r||0),t.mfe,t.mae,t.strat,t.grade,t.emo,t.adh,t.broke,t.exitreason,t.tradeNo,
+      ...cfFields().map(f=>(t.cf&&t.cf[f.id])||""),hl,...(o.notes?[t.review||"",t.notes||""]:[]),t.ticket];
+    P(row.map(csv).join(","));
+  });
+  P("```");
+  P("");
+  P(fa?"— پایان فایل. لطفاً تحلیل را از بخش ۱ شروع کن.":"— End of pack. Please start with the steps in section 1.");
+  return L.join("\n");
+}
+function renderAIPack(){
+  const host=document.getElementById("aiOut"), sel=document.getElementById("ai_scope"); if(!host||!sel)return;
+  const keep=sel.value;
+  const bl=boxes().filter(b=>b&&b.start).slice().sort((a,b)=>String(b.start).localeCompare(String(a.start)));
+  sel.innerHTML=`<option value="all">All trades</option>`
+    +bl.filter(b=>prevBox(b)).map(b=>`<option value="cmp:${esc(b.id)}">${esc(b.name)} compared with ${esc(prevBox(b).name)}</option>`).join("")
+    +bl.map(b=>`<option value="box:${esc(b.id)}">Box: ${esc(b.name)}</option>`).join("")+`<option value="range">A date range…</option>`;
+  if([...sel.options].some(o=>o.value===keep))sel.value=keep;
+  const rg=document.getElementById("ai_range"); if(rg)rg.style.display=sel.value==="range"?"":"none";
+  const o=aiScope(), txt=aiPack(o), kb=Math.round(new Blob([txt]).size/1024);
+  host.innerHTML=`<div class="mini" style="margin-top:10px">${o.tr.length} trades · ${kb} KB${kb>600?` · <span class="au">large — if your AI says the file is too long, pick one box or a date range</span>`:" · fits comfortably in Claude or ChatGPT"}</div>`;
+}
+function aiDownload(){
+  const o=aiScope(); if(!o.tr.length)return toast("No trades in that scope",1);
+  const txt=aiPack(o), a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/markdown;charset=utf-8"}));
+  a.download=`journal-for-ai-${todayStr()}.md`; a.click(); toast("Saved — attach this file to your AI");
+}
+function aiCopy(){const o=aiScope(); if(!o.tr.length)return toast("No trades in that scope",1); copy(aiPack(o),"Copied — paste it into your AI")}
+
 /* a compact, anonymous brief the trader can paste into any AI */
 function briefText(){
   const tr=filtered(), D=diagnose(tr), S=D.S, M=MIN();
@@ -9094,7 +9422,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.14";
+const APP_VERSION="1.0.0-beta.16";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 

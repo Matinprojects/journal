@@ -8556,7 +8556,7 @@ function aiPack(o){
   }
 
   /* ---------- 6 · boxes ---------- */
-  const bxs=boxes().filter(b=>b&&b.start).sort((a,b)=>a.start.localeCompare(b.start)).filter(b=>o.kind==="all"||o.kind==="range"||o.kind==="box:"+b.id);
+  const bxs=boxes().filter(b=>b&&b.start).sort((a,b)=>a.start.localeCompare(b.start)).filter(b=>o.kind==="all"||o.kind==="range"||o.kind==="box:"+b.id||(o.pair&&(b.id===o.pair.cur.id||b.id===o.pair.prev.id)));
   if(bxs.length){
     H("## 6. Boxes (experiments) and their lessons");
     bxs.forEach(b=>{
@@ -9422,7 +9422,7 @@ window.addEventListener("resize",()=>{movePill();
 /* ============================================================
    INSTALLING, OFFLINE, AND BEING A BETA TESTER
    ============================================================ */
-const APP_VERSION="1.0.0-beta.16";
+const APP_VERSION="1.0.0-beta.17";
 const SERVED=location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1";
 let INSTALLPROMPT=null;
 
